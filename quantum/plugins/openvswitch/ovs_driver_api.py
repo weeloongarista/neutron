@@ -37,7 +37,9 @@ class OVSDriverAPI(object):
         """
         Configures isolated L2 segment for a given tenant using :param
         segmentation_type:.
+
         TODO: should it provision VLAN or only create a record in the DB?
+
         :param context: quantum API request context
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel id
