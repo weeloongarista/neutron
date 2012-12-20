@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from quantum.plugins.openvswitch.common.config import cfg
+from quantum.common.exceptions import QuantumException
+from quantum.openstack.common import cfg
 from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
 import jsonrpclib
 
@@ -24,13 +25,13 @@ class AristaRPCWrapper(object):
     Wraps Arista JSON RPC.
     """
 
-    def __init__(self):
-        eapi_info = {'user': cfg.CONF.arista_eapi_user,
-                     'pass': cfg.CONF.arista_eapi_pass,
-                     'host': cfg.CONF.arista_eapi_host}
+    required_conf = ['arista_eapi_user',
+                     'arista_eapi_pass',
+                     'arista_eapi_host']
 
-        eapi_server_url = 'https://%(user)s:%(pass)s@%(host)s/eapi' % eapi_info
-        self._server = jsonrpclib.Server(eapi_server_url)
+    def __init__(self, config=cfg.CONF):
+        self._server = jsonrpclib.Server(self._eapi_host_url(
+                                                    config.ARISTA_DRIVER))
 
     def get_network_list(self):
         return self._server.runCli(cmds=['show openstack'])
@@ -43,6 +44,22 @@ class AristaRPCWrapper(object):
                 return net
 
         return None
+
+    def _eapi_host_url(self, config):
+        print config
+
+        for option in AristaRPCWrapper.required_conf:
+            if option not in config:
+                raise QuantumException('Required %(option)s is not set' %
+                                       option)
+
+        eapi_info = {'user': config.arista_eapi_user,
+                     'pass': config.arista_eapi_pass,
+                     'host': config.arista_eapi_host}
+
+        eapi_server_url = 'https://%(user)s:%(pass)s@%(host)s/eapi' % eapi_info
+
+        return eapi_server_url
 
 
 class AristaOVSDriver(OVSDriverAPI):

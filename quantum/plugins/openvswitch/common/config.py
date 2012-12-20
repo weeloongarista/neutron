@@ -53,7 +53,20 @@ agent_opts = [
     cfg.BoolOpt('rpc', default=True),
 ]
 
+arista_driver_opts = [
+    cfg.StrOpt('arista_eapi_user',
+               default=None,
+               help='Username for Arista vEOS'),
+    cfg.StrOpt('arista_eapi_pass',
+               default=None,
+               help='Password for Arista vEOS'),
+    cfg.StrOpt('arista_eapi_host',
+               default=None,
+               help='Arista vEOS host IP')
+]
+
 
 cfg.CONF.register_opts(database_opts, "DATABASE")
 cfg.CONF.register_opts(ovs_opts, "OVS")
 cfg.CONF.register_opts(agent_opts, "AGENT")
+cfg.CONF.register_opts(arista_driver_opts, "ARISTA_DRIVER")

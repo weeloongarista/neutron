@@ -14,9 +14,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from quantum.common.exceptions import QuantumException
+from quantum.plugins.openvswitch.common.config import cfg
+from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
+import mox
 import unittest
 
 
 class AristaRPCWrapperTestCase(unittest.TestCase):
-    def test(self):
-        self.assertTrue(True)
+
+    def setUp(self):
+        self.mocker = mox.Mox()
+
+    def tearDown(self):
+        self.mocker.VerifyAll()
+        self.mocker.UnsetStubs()
+
+    def test_raises_exception_on_wrong_configuration(self):
+        conf = self.mocker.CreateMock(cfg.CONF)
+
+        conf.arista_eapi_user = None
+        conf.arista_eapi_pass = None
+        conf.arista_eapi_host = None
+
+        self.mocker.ReplayAll()
+
+        self.assertRaises(QuantumException, AristaRPCWrapper, conf)
