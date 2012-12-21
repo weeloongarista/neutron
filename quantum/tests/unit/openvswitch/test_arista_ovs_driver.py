@@ -14,29 +14,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from quantum.common.exceptions import QuantumException
-from quantum.plugins.openvswitch.common.config import cfg
+from mox import IsA
+from quantum.plugins.openvswitch.drivers.arista import AristaException
 from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
 import mox
 import unittest
 
 
+class FakeConfig(object):
+    def __init__(self, initial_value=None):
+        required_options = AristaRPCWrapper.required_options
+        self._dict = {opt: initial_value for opt in required_options}
+
+    def get(self, item):
+        return self[item]
+
+    def __getattr__(self, attr):
+        return self[attr]
+
+    def __getitem__(self, item):
+        return self._dict[item]
+
+
 class AristaRPCWrapperTestCase(unittest.TestCase):
-
-    def setUp(self):
-        self.mocker = mox.Mox()
-
-    def tearDown(self):
-        self.mocker.VerifyAll()
-        self.mocker.UnsetStubs()
-
     def test_raises_exception_on_wrong_configuration(self):
-        conf = self.mocker.CreateMock(cfg.CONF)
+        fake_config = FakeConfig()
+        self.assertRaises(AristaException, AristaRPCWrapper, fake_config)
 
-        conf.arista_eapi_user = None
-        conf.arista_eapi_pass = None
-        conf.arista_eapi_host = None
+    def test_no_exception_on_correct_configuration(self):
+        fake_config = FakeConfig('some_value')
 
-        self.mocker.ReplayAll()
+        obj = AristaRPCWrapper(fake_config)
 
-        self.assertRaises(QuantumException, AristaRPCWrapper, conf)
+        self.assertNotEqual(obj, None)
+
+    def test_rpc_response_sent(self):
+        mocker = mox.Mox()
+
+        fake_config = FakeConfig('some_value')
+
+        drv = AristaRPCWrapper(fake_config)
+        mocker.StubOutWithMock(drv, '_run_openstack_cmd')
+        drv._run_openstack_cmd(IsA(list))
+
+        mocker.ReplayAll()
+
+        network_id = 123
+        vlan_id = 123
+        host_id = 123
+        drv.provision_vlan(network_id, vlan_id, host_id)
+
+        mocker.VerifyAll()
