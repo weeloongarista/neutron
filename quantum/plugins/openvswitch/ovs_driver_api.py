@@ -48,7 +48,7 @@ class OVSDriverAPI(object):
         pass
 
     @abstractmethod
-    def plug_host(self, context, network_id, host_id):
+    def plug_host(self, context, network_id, segmentation_id, host_id):
         """
         Connects L2 network with a VM instance (TODO: hypervisor?)
         :param context: quantum API request context
@@ -59,7 +59,7 @@ class OVSDriverAPI(object):
         pass
 
     @abstractmethod
-    def unplug_host(self, context, network_id, host_id):
+    def unplug_host(self, context, network_id, segmentation_id, host_id):
         """
         Removes connection between L2 network segment and a VM instance (TODO:
         hypervisor host?)
@@ -71,7 +71,7 @@ class OVSDriverAPI(object):
         pass
 
     @abstractmethod
-    def delete_tenant_network(self, context, network_id):
+    def delete_vlan(self, context, network_id):
         """
         Deletes L2 network segment (vlan or tunnel) configuration from the
         hardware

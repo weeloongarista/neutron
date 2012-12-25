@@ -32,6 +32,7 @@ class AristaRPCWrapper(object):
     Wraps Arista JSON RPC.
     vEOS - operating system used in Arista hardware
     EAPI - JSON RPC API provided by Arista vEOS
+    TOR - Top Of Rack switch, Arista HW switch
     """
     required_options = [el for el in ARISTA_CONF]
 
@@ -40,13 +41,13 @@ class AristaRPCWrapper(object):
 
     def get_network_list(self):
         """
-        Returns list of all networs know by vEOS
+        Returns list of all networks known by vEOS
         """
         return self._run_openstack_cmd(['show openstack'])
 
     def get_network_info(self, network_id):
         """
-        Returns list of VLANs for a given TODO: tenant (network?)
+        Returns list of VLANs for a given network
         :param network_id:
         """
         net_list = self.get_network_list()
@@ -57,10 +58,10 @@ class AristaRPCWrapper(object):
 
         return None
 
-    def provision_vlan(self, network_id, vlan_id, host):
+    def plug_host_into_vlan(self, network_id, vlan_id, host):
         """
         Creates VLAN between TOR and compute host
-        :param network_id: tenant network ID TODO: tenant or network?
+        :param network_id: globally unique quantum network identifier
         :param vlan_id: VLAN ID
         :param host: compute node to be connected to a VLAN
         """
@@ -68,23 +69,23 @@ class AristaRPCWrapper(object):
                 'type vlan id %s host %s' % (vlan_id, host)]
         self._run_openstack_cmd(cmds)
 
-    def delete_tenant_network(self, network_id):
-        """
-        Deletes all tenant networks
-        :param network_id: TODO: tenant ID?
-        """
-        cmds = ['no tenant-network %s' % network_id]
-        self._run_openstack_cmd(cmds)
-
-    def delete_vlan(self, network_id, vlan_id, host_id):
+    def unplug_host_from_vlan(self, network_id, vlan_id, host_id):
         """
         Removes previously configured VLAN between TOR and a host
-        :param network_id: TODO: tenant or network ID?
+        :param network_id: globally unique quantum network identifier
         :param vlan_id: VLAN ID
         :param host_id: target host to remove VLAN
         """
         cmds = ['tenant-network %s' % network_id,
                 'no type vlan id %s host id %s' % vlan_id, host_id]
+        self._run_openstack_cmd(cmds)
+
+    def delete_vlan(self, network_id):
+        """
+        Deletes all tenant networks
+        :param network_id: globally unique quantum network identifier
+        """
+        cmds = ['no tenant-network %s' % network_id]
         self._run_openstack_cmd(cmds)
 
     def _run_openstack_cmd(self, cmds):
@@ -116,24 +117,30 @@ class AristaRPCWrapper(object):
 
 class AristaOVSDriver(OVSDriverAPI):
     """
-    OVS driver for Arista networking hardware.
+    OVS driver for Arista networking hardware. Currently works in VLAN mode
+    only.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, rpc=None):
+        if rpc is None:
+            self.rpc = AristaRPCWrapper()
+        else:
+            self.rpc = rpc
 
     def create_tenant_network(self, context, network_id, segmentation_id,
                               segmentation_type):
         pass
 
-    def delete_tenant_network(self, context, network_id):
+    def delete_vlan(self, context, network_id):
         pass
 
-    def unplug_host(self, context, network_id, host_id):
-        pass
+    def unplug_host(self, context, network_id, segmentation_id, host_id):
+        return self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
+                                              host_id)
 
-    def plug_host(self, context, network_id, host_id):
-        pass
+    def plug_host(self, context, network_id, segmentation_id, host_id):
+        return self.rpc.plug_host_into_vlan(network_id, segmentation_id,
+                                            host_id)
 
     def get_tenant_network(self, context, networkd_id=None):
         pass

@@ -19,6 +19,7 @@ from quantum.plugins.openvswitch.drivers.arista import AristaException
 from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
 import mox
 import unittest
+from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
 
 
 class FakeConfig(object):
@@ -62,6 +63,33 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
         network_id = 123
         vlan_id = 123
         host_id = 123
-        drv.provision_vlan(network_id, vlan_id, host_id)
+        drv.plug_host_into_vlan(network_id, vlan_id, host_id)
 
         mocker.VerifyAll()
+
+
+class AristaOVSDriverTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.mocker = mox.Mox()
+
+    def tearDown(self):
+        self.mocker.VerifyAll()
+        self.mocker.UnsetStubs()
+
+    def test_rpc_brocker_method_is_called(self):
+        fake_rpc_broker = self.mocker.CreateMock(AristaRPCWrapper)
+
+        context = None
+        network_id = 123
+        vlan_id = 123
+        host_id = 123
+
+        fake_rpc_broker.plug_host_into_vlan(network_id, vlan_id, host_id)
+
+        self.mocker.ReplayAll()
+
+        drv = AristaOVSDriver(fake_rpc_broker)
+
+        drv.plug_host(context, network_id, vlan_id, host_id)
+
