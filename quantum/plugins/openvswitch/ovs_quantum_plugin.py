@@ -24,6 +24,7 @@ import logging
 import os
 import sys
 
+
 from quantum.api.v2 import attributes
 from quantum.common import constants as q_const
 from quantum.common import exceptions as q_exc
@@ -41,6 +42,9 @@ from quantum.plugins.openvswitch.common import config
 from quantum.plugins.openvswitch.common import constants
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum import policy
+from quantum.plugins.openvswitch import ovs_driver_api
+from quantum.openstack.common import importutils
+from quantum.plugins.openvswitch.drivers.dummy import DummyOVSDriver
 
 
 LOG = logging.getLogger(__name__)
@@ -169,6 +173,56 @@ class AgentNotifierApi(proxy.RpcProxy):
                          topic=self.topic_tunnel_update)
 
 
+class OVSDriverAdapter(object):
+    # TODO: Refactor to remove 'if not self.driver_available:' check in the
+    #       beginning of each method (wrapper?).
+    driver_available = False
+
+    def __init__(self):
+        ovs_driver_class = importutils.import_class(
+                                                cfg.CONF.OVS_DRIVER.ovs_driver)
+        self._driver = ovs_driver_class()
+
+        OVSDriverAdapter.driver_available = (ovs_driver_class is
+                                             not DummyOVSDriver)
+        if not OVSDriverAdapter.driver_available:
+            LOG.info('Loading DUMMY')
+        else:
+            LOG.info('Loading DRIVER')
+
+    def on_port_create(self, context, port):
+        if not self.driver_available:
+            return
+
+        network_id = port['network_id']
+        binding = ovs_db_v2.get_network_binding(None, network_id)
+        segmentation_id = binding.segmentation_id
+        hostname = port['hostname']
+
+        self._ovs_driver.plug_host(context, network_id, segmentation_id,
+                                   hostname)
+
+    def on_port_update(self, context, port):
+        if not self.driver_available:
+            return
+        # TODO: what shold be done on port_update?
+
+    def on_port_delete(self, context, port_id):
+        if not self.driver_available:
+            return
+
+        is_last_port_for_host = True  # TODO: proper initialization
+
+        # Unplug hypervisor only if there are no VMs left for given tenant
+        if is_last_port_for_host:
+            # TODO: Initization
+            network_id = None
+            segmentation_id = None
+            host_id = None
+            self._ovs_driver.unplug_host(context, network_id, segmentation_id,
+                                         host_id)
+
+
 class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                          l3_db.L3_NAT_db_mixin):
     """Implement the Quantum abstractions using Open vSwitch.
@@ -215,6 +269,10 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             sys.exit(1)
         self.agent_rpc = cfg.CONF.AGENT.rpc
         self.setup_rpc()
+        self._initialize_ovs_driver()
+
+    def _initialize_ovs_driver(self):
+        self._ovs_driver = OVSDriverAdapter()
 
     def setup_rpc(self):
         # RPC support
@@ -482,6 +540,13 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
         return [self._fields(net, fields) for net in nets]
 
+    def create_port(self, context, port):
+        port_dict = super(OVSQuantumPluginV2, self).create_port(context, port)
+
+        self._ovs_driver.on_port_create(context, port)
+
+        return port_dict
+
     def update_port(self, context, id, port):
         if self.agent_rpc:
             original_port = super(OVSQuantumPluginV2, self).get_port(context,
@@ -497,11 +562,13 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                           binding.physical_network)
         return port
 
-    def delete_port(self, context, id, l3_port_check=True):
-
+    def delete_port(self, context, port_id, l3_port_check=True):
         # if needed, check to see if this is a port owned by
         # and l3-router.  If so, we should prevent deletion.
         if l3_port_check:
-            self.prevent_l3_port_deletion(context, id)
-        self.disassociate_floatingips(context, id)
-        return super(OVSQuantumPluginV2, self).delete_port(context, id)
+            self.prevent_l3_port_deletion(context, port_id)
+        self.disassociate_floatingips(context, port_id)
+
+        self._ovs_driver.on_port_delete(context, port_id)
+
+        return super(OVSQuantumPluginV2, self).delete_port(context, port_id)

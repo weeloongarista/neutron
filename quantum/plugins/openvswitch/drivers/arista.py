@@ -18,9 +18,13 @@ from quantum.common.exceptions import QuantumException
 from quantum.plugins.openvswitch.common.config import cfg
 from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
 import jsonrpclib
+import logging
 
 
-ARISTA_CONF = cfg.CONF.ARISTA_DRIVER
+LOG = logging.getLogger(__name__)
+
+
+ARISTA_CONF = cfg.CONF.OVS_DRIVER
 
 
 class AristaException(QuantumException):
@@ -111,8 +115,9 @@ class AristaRPCWrapper(object):
     def _validate_config(self, config):
         for option in self.required_options:
             if config.get(option) is None:
-                raise AristaException(msg='Required option %s is not set' %
-                                      option)
+                msg = 'Required option %s is not set' % option
+                LOG.error(msg)
+                raise AristaException(msg=msg)
 
 
 class AristaOVSDriver(OVSDriverAPI):

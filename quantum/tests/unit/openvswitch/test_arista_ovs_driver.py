@@ -25,7 +25,7 @@ from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
 class FakeConfig(object):
     def __init__(self, initial_value=None):
         required_options = AristaRPCWrapper.required_options
-        self._dict = {opt: initial_value for opt in required_options}
+        self._opts = dict([(opt, initial_value) for opt in required_options])
 
     def get(self, item):
         return self[item]
@@ -34,7 +34,7 @@ class FakeConfig(object):
         return self[attr]
 
     def __getitem__(self, item):
-        return self._dict[item]
+        return self._opts[item]
 
 
 class AristaRPCWrapperTestCase(unittest.TestCase):
@@ -92,4 +92,3 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         drv = AristaOVSDriver(fake_rpc_broker)
 
         drv.plug_host(context, network_id, vlan_id, host_id)
-

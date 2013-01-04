@@ -53,6 +53,12 @@ agent_opts = [
     cfg.BoolOpt('rpc', default=True),
 ]
 
+generic_ovs_driver_opts = [
+    cfg.StrOpt('ovs_driver',
+            default='quantum.plugins.openvswitch.drivers.dummy.DummyOVSDriver',
+            help='OVS driver used as a backend.'),
+]
+
 arista_driver_opts = [
     cfg.StrOpt('arista_eapi_user',
                default=None,
@@ -69,4 +75,5 @@ arista_driver_opts = [
 cfg.CONF.register_opts(database_opts, "DATABASE")
 cfg.CONF.register_opts(ovs_opts, "OVS")
 cfg.CONF.register_opts(agent_opts, "AGENT")
-cfg.CONF.register_opts(arista_driver_opts, "ARISTA_DRIVER")
+cfg.CONF.register_opts(arista_driver_opts, "OVS_DRIVER")
+cfg.CONF.register_opts(generic_ovs_driver_opts, "OVS_DRIVER")
