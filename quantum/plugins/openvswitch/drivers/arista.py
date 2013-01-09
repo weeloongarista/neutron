@@ -30,6 +30,10 @@ ARISTA_CONF = cfg.CONF.OVS_DRIVER
 class AristaException(QuantumException):
     message = _('%(msg)s')
 
+    def __init__(self, message):
+        self.message = message
+        super(AristaException, self).__init__()
+
 
 class AristaRPCWrapper(object):
     """
@@ -69,6 +73,11 @@ class AristaRPCWrapper(object):
         :param vlan_id: VLAN ID
         :param host: compute node to be connected to a VLAN
         """
+        LOG.info('plug_host_into_vlan')
+        LOG.info('hostname: %s' % host)
+        LOG.info('network_id: %s' % network_id)
+        LOG.info('vlan_id: %s' % vlan_id)
+
         cmds = ['tenant-network %s' % network_id,
                 'type vlan id %s host %s' % (vlan_id, host)]
         self._run_openstack_cmd(cmds)
@@ -93,15 +102,28 @@ class AristaRPCWrapper(object):
         self._run_openstack_cmd(cmds)
 
     def _run_openstack_cmd(self, cmds):
-        if cmds is not list:
+        if type(cmds) is not list:
             cmds = [cmds]
 
-        start = ['configure terminal', 'management openstack']
-        end = ['exit']
+        full_command = ['configure terminal', 'management openstack']
+        for cmd in cmds:
+            full_command.append(cmd)
+        full_command.append('exit')
 
-        full_command = start + cmds + end
+        LOG.info('Executing command on Arista vEOS: %s', full_command)
 
-        return self._server.runCli(cmds=full_command)
+        ret = None
+
+        try:
+            ret = self._server.runCli(cmds=full_command)
+        except Exception as ex:
+            msg = ('Error %s while trying to execute commands %s on vEOS '
+                   '%s') % (ex.message, full_command,
+                            ARISTA_CONF.arista_eapi_host)
+            LOG.error(msg)
+            raise AristaException(msg)
+
+        return ret
 
     def _eapi_host_url(self, config):
         self._validate_config(config)
@@ -117,7 +139,7 @@ class AristaRPCWrapper(object):
             if config.get(option) is None:
                 msg = 'Required option %s is not set' % option
                 LOG.error(msg)
-                raise AristaException(msg=msg)
+                raise AristaException(msg)
 
 
 class AristaOVSDriver(OVSDriverAPI):
@@ -144,6 +166,7 @@ class AristaOVSDriver(OVSDriverAPI):
                                               host_id)
 
     def plug_host(self, context, network_id, segmentation_id, host_id):
+        LOG.info('plug_host')
         return self.rpc.plug_host_into_vlan(network_id, segmentation_id,
                                             host_id)
 

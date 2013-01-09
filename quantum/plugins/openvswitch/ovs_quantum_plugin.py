@@ -185,22 +185,20 @@ class OVSDriverAdapter(object):
 
         OVSDriverAdapter.driver_available = (ovs_driver_class is
                                              not DummyOVSDriver)
-        if not OVSDriverAdapter.driver_available:
-            LOG.info('Loading DUMMY')
-        else:
-            LOG.info('Loading DRIVER')
 
     def on_port_create(self, context, port):
         if not self.driver_available:
             return
 
-        network_id = port['network_id']
+        p = port['port']
+
+        network_id = p['network_id']
         binding = ovs_db_v2.get_network_binding(None, network_id)
         segmentation_id = binding.segmentation_id
-        hostname = port['hostname']
+        hostname = p['hostname']
 
-        self._ovs_driver.plug_host(context, network_id, segmentation_id,
-                                   hostname)
+        self._driver.plug_host(context, network_id, segmentation_id,
+                               hostname)
 
     def on_port_update(self, context, port):
         if not self.driver_available:
@@ -219,7 +217,7 @@ class OVSDriverAdapter(object):
             network_id = None
             segmentation_id = None
             host_id = None
-            self._ovs_driver.unplug_host(context, network_id, segmentation_id,
+            self._driver.unplug_host(context, network_id, segmentation_id,
                                          host_id)
 
 
