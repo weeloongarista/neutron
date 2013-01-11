@@ -93,7 +93,7 @@ class AristaRPCWrapper(object):
                 'no type vlan id %s host id %s' % vlan_id, host_id]
         self._run_openstack_cmd(cmds)
 
-    def delete_vlan(self, network_id):
+    def delete_network(self, network_id):
         """
         Deletes all tenant networks
         :param network_id: globally unique quantum network identifier
@@ -154,12 +154,11 @@ class AristaOVSDriver(OVSDriverAPI):
         else:
             self.rpc = rpc
 
-    def create_tenant_network(self, context, network_id, segmentation_id,
-                              segmentation_type):
+    def create_tenant_network(self, context, network_id, segmentation_type):
         pass
 
-    def delete_vlan(self, context, network_id):
-        pass
+    def delete_tenant_network(self, context, network_id):
+        return self.rpc.delete_network(network_id)
 
     def unplug_host(self, context, network_id, segmentation_id, host_id):
         return self.rpc.unplug_host_from_vlan(network_id, segmentation_id,

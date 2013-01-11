@@ -32,7 +32,7 @@ class DummyOVSDriver(OVSDriverAPI):
     def unplug_host(self, context, network_id, segmentation_id, host_id):
         pass
 
-    def delete_vlan(self, context, network_id):
+    def delete_tenant_network(self, context, network_id):
         pass
 
     def get_tenant_network(self, context, networkd_id=None):
