@@ -42,7 +42,9 @@ class AristaRPCWrapper(object):
     EAPI - JSON RPC API provided by Arista vEOS
     TOR - Top Of Rack switch, Arista HW switch
     """
-    required_options = [el for el in ARISTA_CONF]
+    required_options = ['arista_eapi_pass',
+                        'arista_eapi_host',
+                        'arista_eapi_user']
 
     def __init__(self, config=ARISTA_CONF):
         self._server = jsonrpclib.Server(self._eapi_host_url(config))

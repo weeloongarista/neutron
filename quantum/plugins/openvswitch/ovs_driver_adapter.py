@@ -18,6 +18,7 @@ from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum.plugins.openvswitch.drivers.dummy import DummyOVSDriver
+from quantum.common.exceptions import QuantumException
 
 
 class OVSDriverAdapter(object):
@@ -27,12 +28,19 @@ class OVSDriverAdapter(object):
 
     # TODO: Refactor to remove 'if not self.driver_available:' check in the
     #       beginning of each method (wrapper?).
+    required_options = ['ovs_driver_segmentation_type', 'ovs_driver']
     driver_available = False
-    segmentation_type = cfg.CONF.OVS_DRIVER.ovs_driver_segmentation_type
+    segmentation_type = 'vlan'
 
     def __init__(self):
+        for opt in self.required_options:
+            if opt not in cfg.CONF.OVS_DRIVER:
+                raise QuantumException('Required option %s is not set' % opt)
+
+        self.segmentation_type = cfg.CONF.OVS_DRIVER[
+                                            'ovs_driver_segmentation_type']
         ovs_driver_class = importutils.import_class(
-                                                cfg.CONF.OVS_DRIVER.ovs_driver)
+                                            cfg.CONF.OVS_DRIVER['ovs_driver'])
         self._driver = ovs_driver_class()
 
         OVSDriverAdapter.driver_available = (ovs_driver_class is
