@@ -161,15 +161,14 @@ class AristaOVSDriver(OVSDriverAPI):
     only, tunnelling L2 segregation is not supported.
     """
 
-    segmentation_type = ARISTA_CONF['ovs_driver_segmentation_type']
-
-    def __init__(self, rpc=None):
+    def __init__(self, rpc=None, cfg=ARISTA_CONF):
         if rpc is None:
             self.rpc = AristaRPCWrapper()
         else:
             self.rpc = rpc
 
         self._provisioned_nets = self.rpc.get_network_list()
+        self.segmentation_type = cfg['ovs_driver_segmentation_type']
 
     def create_tenant_network(self, context, network_id):
         pass
@@ -218,11 +217,10 @@ class AristaOVSDriver(OVSDriverAPI):
 
     def _remember_network(self, network_id, segmentation_id, host_id):
         # TODO: There must be a list of hostIds. Currently - single item.
-        segmentation_type = ARISTA_CONF['ovs_driver_segmentation_type']
         self._provisioned_nets[network_id] = {
             'segmentationId': segmentation_id,
             'hostId': host_id,
-            'segmentationType': segmentation_type
+            'segmentationType': self.segmentation_type
         }
 
     def _forget_network(self, network_id, segmentation_id, host_id):

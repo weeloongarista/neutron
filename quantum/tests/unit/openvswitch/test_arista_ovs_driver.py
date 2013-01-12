@@ -16,10 +16,11 @@
 
 from mox import IsA
 from quantum.plugins.openvswitch.drivers.arista import AristaException
+from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
 from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
 import mox
 import unittest
-from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
+from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 
 
 class FakeConfig(object):
@@ -79,16 +80,18 @@ class AristaOVSDriverTestCase(unittest.TestCase):
 
     def test_rpc_brocker_method_is_called(self):
         fake_rpc_broker = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
 
         context = None
         network_id = 123
         vlan_id = 123
         host_id = 123
 
+        fake_rpc_broker.get_network_list().AndReturn({})
         fake_rpc_broker.plug_host_into_vlan(network_id, vlan_id, host_id)
 
         self.mocker.ReplayAll()
 
-        drv = AristaOVSDriver(fake_rpc_broker)
+        drv = AristaOVSDriver(fake_rpc_broker, fake_conf)
 
         drv.plug_host(context, network_id, vlan_id, host_id)
