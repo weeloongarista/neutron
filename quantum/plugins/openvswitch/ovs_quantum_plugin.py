@@ -40,6 +40,7 @@ from quantum.openstack.common.rpc import dispatcher
 from quantum.openstack.common.rpc import proxy
 from quantum.plugins.openvswitch.common import constants
 from quantum.plugins.openvswitch import ovs_db_v2
+from quantum.plugins.openvswitch.common import config
 from quantum import policy
 
 from quantum.plugins.openvswitch.ovs_driver_adapter import OVSDriverAdapter
@@ -507,6 +508,9 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         if self.agent_rpc:
             original_port = super(OVSQuantumPluginV2, self).get_port(context,
                                                                      id)
+
+        self._ovs_driver.on_port_update(context, id, port)
+
         port = super(OVSQuantumPluginV2, self).update_port(context, id, port)
         if self.agent_rpc:
             if original_port['admin_state_up'] != port['admin_state_up']:

@@ -19,7 +19,6 @@ from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum.plugins.openvswitch.drivers.dummy import DummyOVSDriver
-from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGREGATION
 
 
 class OVSDriverAdapter(object):
@@ -31,15 +30,12 @@ class OVSDriverAdapter(object):
     #       beginning of each method (wrapper?).
     required_options = ['ovs_driver_segmentation_type', 'ovs_driver']
     driver_available = False
-    segmentation_type = VLAN_SEGREGATION
 
     def __init__(self):
         for opt in self.required_options:
             if opt not in cfg.CONF.OVS_DRIVER:
                 raise QuantumException('Required option %s is not set' % opt)
 
-        self.segmentation_type = cfg.CONF.OVS_DRIVER[
-                                            'ovs_driver_segmentation_type']
         ovs_driver_class = importutils.import_class(
                                             cfg.CONF.OVS_DRIVER['ovs_driver'])
         self._driver = ovs_driver_class()
@@ -58,21 +54,20 @@ class OVSDriverAdapter(object):
         segmentation_id = binding.segmentation_id
         hypervisor = p['hostname']
 
-        self._driver.plug_host(context, network_id, self.segmentation_type,
-                               segmentation_id, hypervisor)
+        self._driver.plug_host(context, network_id, segmentation_id,
+                               hypervisor)
 
-    def on_port_delete(self):
+    def on_port_delete(self, context, port):
         pass
 
-    def on_port_update(self):
+    def on_port_update(self, context, old_port_id, new_port):
         pass
 
     def on_network_create(self, context, network):
         if not self.driver_available:
             return
 
-        self._driver.create_tenant_network(context, network['id'],
-                                           self.segmentation_type)
+        self._driver.create_tenant_network(context, network['id'])
 
     def on_network_update(self, context, network_id):
         if not self.driver_available:
