@@ -57,6 +57,10 @@ generic_ovs_driver_opts = [
     cfg.StrOpt('ovs_driver',
             default='quantum.plugins.openvswitch.drivers.dummy.DummyOVSDriver',
             help='OVS driver used as a backend.'),
+    cfg.StrOpt('ovs_driver_segmentation_type',
+            default='vlan',
+            help=('L2 segregation type to be used on hardware routers. One of '
+                  'vlan or tunnel is supported.'))
 ]
 
 arista_driver_opts = [
