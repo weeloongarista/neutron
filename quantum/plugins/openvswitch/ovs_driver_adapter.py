@@ -14,11 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from quantum.common.exceptions import QuantumException
 from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum.plugins.openvswitch.drivers.dummy import DummyOVSDriver
-from quantum.common.exceptions import QuantumException
+from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGREGATION
 
 
 class OVSDriverAdapter(object):
@@ -30,7 +31,7 @@ class OVSDriverAdapter(object):
     #       beginning of each method (wrapper?).
     required_options = ['ovs_driver_segmentation_type', 'ovs_driver']
     driver_available = False
-    segmentation_type = 'vlan'
+    segmentation_type = VLAN_SEGREGATION
 
     def __init__(self):
         for opt in self.required_options:

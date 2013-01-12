@@ -26,7 +26,9 @@ TODO: Move link to globally-accessed place (launchpad.net)
 from abc import ABCMeta, abstractmethod
 
 
-# TODO: Introduce segmentation type class (enum?) for VLAN and tunnels
+VLAN_SEGREGATION = 'vlan'
+TUNNEL_SEGREGATION = 'tunnel'
+
 
 class OVSDriverAPI(object):
     __metaclass__ = ABCMeta

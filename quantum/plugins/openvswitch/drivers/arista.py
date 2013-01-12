@@ -17,6 +17,7 @@
 from quantum.common.exceptions import QuantumException
 from quantum.plugins.openvswitch.common.config import cfg
 from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
+from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGREGATION
 import jsonrpclib
 import logging
 
@@ -147,7 +148,7 @@ class AristaRPCWrapper(object):
 class AristaOVSDriver(OVSDriverAPI):
     """
     OVS driver for Arista networking hardware. Currently works in VLAN mode
-    only.
+    only, tunnelling L2 segregation is not supported.
     """
 
     def __init__(self, rpc=None):
@@ -163,13 +164,18 @@ class AristaOVSDriver(OVSDriverAPI):
         return self.rpc.delete_network(network_id)
 
     def unplug_host(self, context, network_id, segmentation_id, host_id):
-        return self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
-                                              host_id)
+        if self._vlans_used():
+            return self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
+                                                  host_id)
 
     def plug_host(self, context, network_id, segmentation_id, host_id):
         LOG.info('plug_host')
-        return self.rpc.plug_host_into_vlan(network_id, segmentation_id,
-                                            host_id)
+        if self._vlans_used():
+            return self.rpc.plug_host_into_vlan(network_id, segmentation_id,
+                                                host_id)
 
     def get_tenant_network(self, context, networkd_id=None):
         pass
+
+    def _vlans_used(self):
+        return ARISTA_CONF['ovs_driver_segmentation_type'] == VLAN_SEGREGATION
