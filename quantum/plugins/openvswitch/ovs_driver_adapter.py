@@ -19,6 +19,10 @@ from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum.plugins.openvswitch.drivers.dummy import DummyOVSDriver
+import logging
+
+
+LOG = logging.getLogger(__name__)
 
 
 class OVSDriverAdapter(object):

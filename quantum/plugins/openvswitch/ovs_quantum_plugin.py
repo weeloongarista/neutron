@@ -439,7 +439,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self._extend_network_dict_l3(context, net)
             # note - exception will rollback entire transaction
 
-        self._ovs_driver.on_network_create(context, network)
+        self._ovs_driver.on_network_create(context, net)
 
         LOG.debug("Created network: %s", net['id'])
         return net

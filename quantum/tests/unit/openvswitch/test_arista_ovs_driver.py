@@ -18,9 +18,9 @@ from mox import IsA
 from quantum.plugins.openvswitch.drivers.arista import AristaException
 from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
 from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
+from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 import mox
 import unittest
-from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 
 
 class FakeConfig(object):

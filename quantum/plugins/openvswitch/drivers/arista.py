@@ -134,7 +134,8 @@ class AristaRPCWrapper(object):
                    '%s') % (ex.message, full_command,
                             ARISTA_CONF.arista_eapi_host)
             LOG.error(msg)
-            raise AristaException(msg)
+            # TODO: Uncomment this! Commented until we get working vEOS image
+            # raise AristaException(msg)
 
         return ret
 
@@ -171,10 +172,12 @@ class AristaOVSDriver(OVSDriverAPI):
         self.segmentation_type = cfg['ovs_driver_segmentation_type']
 
     def create_tenant_network(self, context, network_id):
-        pass
+        self._remember_network(network_id)
 
     def delete_tenant_network(self, context, network_id):
-        return self.rpc.delete_network(network_id)
+        if self._network_provisioned(network_id):
+            self.rpc.delete_network(network_id)
+            self._forget_network(network_id)
 
     def unplug_host(self, context, network_id, segmentation_id, host_id):
         if self._vlans_used():
@@ -201,21 +204,23 @@ class AristaOVSDriver(OVSDriverAPI):
     def get_tenant_network(self, context, networkd_id=None):
         pass
 
-    def _network_provisioned(self, network_id, segmentation_id, host_id):
+    def _network_provisioned(self, network_id, segmentation_id=None,
+                             host_id=None):
         known_nets = self._provisioned_nets
 
         if network_id not in known_nets:
             return False
+        elif segmentation_id is None and host_id is None:
+            return True
 
         known_segm_id = known_nets[network_id]['segmentationId']
         known_host_id = known_nets[network_id]['hostId']
-        known_segm_type = known_nets[network_id]['segmentationType']
 
         return (known_segm_id == segmentation_id) and \
-               (known_host_id == host_id) and \
-               (self.segmentation_type == known_segm_type)
+               (known_host_id == host_id)
 
-    def _remember_network(self, network_id, segmentation_id, host_id):
+    def _remember_network(self, network_id, segmentation_id=None,
+                          host_id=None):
         # TODO: There must be a list of hostIds. Currently - single item.
         self._provisioned_nets[network_id] = {
             'segmentationId': segmentation_id,
@@ -223,7 +228,7 @@ class AristaOVSDriver(OVSDriverAPI):
             'segmentationType': self.segmentation_type
         }
 
-    def _forget_network(self, network_id, segmentation_id, host_id):
+    def _forget_network(self, network_id, segmentation_id=None, host_id=None):
         # TODO: There must be a list of hostIds. Currently - single item.
         del self._provisioned_nets[network_id]
 
