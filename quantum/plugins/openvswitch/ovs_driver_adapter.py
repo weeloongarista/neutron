@@ -58,8 +58,7 @@ class OVSDriverAdapter(object):
         segmentation_id = binding.segmentation_id
         hypervisor = p['hostname']
 
-        self._driver.plug_host(context, network_id, segmentation_id,
-                               hypervisor)
+        self._driver.plug_host(network_id, segmentation_id, hypervisor)
 
     def on_port_delete(self, context, port):
         pass
@@ -71,7 +70,7 @@ class OVSDriverAdapter(object):
         if not self.driver_available:
             return
 
-        self._driver.create_tenant_network(context, network['id'])
+        self._driver.create_tenant_network(network['id'])
 
     def on_network_update(self, context, network_id):
         if not self.driver_available:
@@ -82,4 +81,4 @@ class OVSDriverAdapter(object):
         if not self.driver_available:
             return
 
-        self._driver.delete_tenant_network(context, network_id)
+        self._driver.delete_tenant_network(network_id)

@@ -33,22 +33,20 @@ class OVSDriverAPI(object):
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def create_tenant_network(self, context, network_id):
+    def create_tenant_network(self, network_id):
         """
         Configures isolated L2 segment for a given tenant using :param
         segmentation_type:.
 
-        :param context: quantum API request context
         :param network_id: globally-unique quantum network identifier
         :param segmentation_type: either VLAN or tunnel
         """
         pass
 
     @abstractmethod
-    def plug_host(self, context, network_id, segmentation_id, host_id):
+    def plug_host(self, network_id, segmentation_id, host_id):
         """
         Connects L2 network with a compute node
-        :param context: quantum API request context
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel ID
         :param host_id: hypervisor (compute node)
@@ -56,10 +54,9 @@ class OVSDriverAPI(object):
         pass
 
     @abstractmethod
-    def unplug_host(self, context, network_id, segmentation_id, host_id):
+    def unplug_host(self, network_id, segmentation_id, host_id):
         """
         Removes connection between L2 network segment and a compute node
-        :param context: quantum API request context
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel ID
         :param host_id: hypervisor (compute node)
@@ -67,7 +64,7 @@ class OVSDriverAPI(object):
         pass
 
     @abstractmethod
-    def delete_tenant_network(self, context, network_id):
+    def delete_tenant_network(self, network_id):
         """
         Deletes L2 network segment (vlan or tunnel) configuration from the
         hardware
@@ -77,13 +74,12 @@ class OVSDriverAPI(object):
         pass
 
     @abstractmethod
-    def get_tenant_network(self, context, networkd_id=None):
+    def get_tenant_network(self, networkd_id=None):
         """
         If :param network_id: is not set - returns list of available L2
         networks
         If :param network_id: is set - returns detailed information about the
         network
-        :param context: quantum API request context
         :param networkd_id: globally-unique quantum network identifier
         """
         pass

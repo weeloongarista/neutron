@@ -134,7 +134,6 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         fake_rpc_broker = self.mocker.CreateMock(AristaRPCWrapper)
         fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
 
-        context = None
         network_id = 123
         vlan_id = 123
         host_id = 123
@@ -146,4 +145,4 @@ class AristaOVSDriverTestCase(unittest.TestCase):
 
         drv = AristaOVSDriver(fake_rpc_broker, fake_conf)
 
-        drv.plug_host(context, network_id, vlan_id, host_id)
+        drv.plug_host(network_id, vlan_id, host_id)
