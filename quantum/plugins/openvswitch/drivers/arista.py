@@ -32,7 +32,7 @@ class AristaRpcException(QuantumException):
     message = _('%(msg)s')
 
 
-class AristaConfigurationException(QuantumException):
+class AristaConfigException(QuantumException):
     message = _('%(msg)s')
 
 
@@ -156,7 +156,7 @@ class AristaRPCWrapper(object):
             if config.get(option) is None:
                 msg = 'Required option %s is not set' % option
                 LOG.error(msg)
-                raise AristaConfigurationException(msg=msg)
+                raise AristaConfigException(msg=msg)
 
 
 class AristaOVSDriver(OVSDriverAPI):

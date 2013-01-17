@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from mox import IsA
-from quantum.plugins.openvswitch.drivers.arista import AristaConfigurationException
+from quantum.plugins.openvswitch.drivers.arista import AristaConfigException
 from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
 from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
 from quantum.plugins.openvswitch.drivers.arista import AristaRpcException
@@ -50,7 +50,7 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
 
     def test_raises_exception_on_wrong_configuration(self):
         fake_config = FakeConfig()
-        self.assertRaises(AristaConfigurationException, AristaRPCWrapper,
+        self.assertRaises(AristaConfigException, AristaRPCWrapper,
                           fake_config)
 
     def test_no_exception_on_correct_configuration(self):
