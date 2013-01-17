@@ -100,7 +100,7 @@ class AristaRPCWrapper(object):
         :param host_id: target host to remove VLAN
         """
         cmds = ['tenant-network %s' % network_id,
-                'no type vlan id %s host id %s' % vlan_id, host_id]
+                'no type vlan id %s host id %s' % (vlan_id, host_id)]
         self._run_openstack_cmd(cmds)
 
     def delete_network(self, network_id):
