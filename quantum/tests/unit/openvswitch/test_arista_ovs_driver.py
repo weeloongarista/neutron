@@ -122,13 +122,109 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
 
 
 class AristaOVSDriverTestCase(unittest.TestCase):
-
     def setUp(self):
         self.mocker = mox.Mox()
 
     def tearDown(self):
         self.mocker.VerifyAll()
         self.mocker.UnsetStubs()
+
+    def test_rpc_request_not_sent_for_non_existing_host_unplug(self):
+        network_id = 'net1-id'
+        vlan_id = 123
+        host_id = 'ubuntu123'
+
+        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc.get_network_list().AndReturn({})
+        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
+
+        self.mocker.ReplayAll()
+
+        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv.create_tenant_network(network_id)
+        drv.unplug_host(network_id, vlan_id, host_id)
+
+    def test_rpc_request_sent_for_existing_vlan_on_unplug_host(self):
+        network_id = 'net1-id'
+        vlan_id = 1234
+        host1_id = 'ubuntu1'
+        host2_id = 'ubuntu2'
+
+        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc.get_network_list().AndReturn({})
+        fake_rpc.plug_host_into_vlan(network_id, vlan_id, host1_id)
+        fake_rpc.plug_host_into_vlan(network_id, vlan_id, host2_id)
+        fake_rpc.unplug_host_from_vlan(network_id, vlan_id, host2_id)
+        fake_rpc.unplug_host_from_vlan(network_id, vlan_id, host1_id)
+
+        self.mocker.ReplayAll()
+
+        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
+
+        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv.create_tenant_network(network_id)
+
+        drv.plug_host(network_id, vlan_id, host1_id)
+        drv.plug_host(network_id, vlan_id, host2_id)
+        drv.unplug_host(network_id, vlan_id, host2_id)
+        drv.unplug_host(network_id, vlan_id, host1_id)
+
+    def test_rpc_request_not_sent_for_existing_vlan_after_plug_host(self):
+        network_id = 'net1-id'
+        vlan_id = 1001
+        host_id = 'ubuntu1'
+
+        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc.get_network_list().AndReturn({})
+        fake_rpc.plug_host_into_vlan(network_id, vlan_id, host_id)
+
+        self.mocker.ReplayAll()
+
+        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
+
+        drv = AristaOVSDriver(fake_rpc, fake_conf)
+
+        # Common use-case:
+        #   1. User creates network - quantum net-create net1
+        #   2. Boots 3 VMs connected to previously created quantum network
+        #      'net1', and VMs are scheduled on the same hypervisor
+        # In this case RPC request must be sent only once
+        drv.create_tenant_network(network_id)
+
+        drv.plug_host(network_id, vlan_id, host_id)
+        drv.plug_host(network_id, vlan_id, host_id)
+        drv.plug_host(network_id, vlan_id, host_id)
+
+    def test_rpc_request_not_sent_for_existing_vlan_after_start(self):
+        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
+
+        net1_id = 'net1-id'
+        net2_id = 'net2-id'
+        net2_vlan = 1002
+        net2_host = 'ubuntu3'
+        provisioned_networks = {net1_id: {'hostId': ['ubuntu1'],
+                                          'name': net1_id,
+                                          'segmentationId': 1000,
+                                          'segmentationType': 'vlan'},
+                                net2_id: {'hostId': ['ubuntu2', net2_host],
+                                          'name': net2_id,
+                                          'segmentationId': net2_vlan,
+                                          'segmentationType': 'vlan'}}
+
+        network_id = net2_id
+        segmentation_id = net2_vlan
+        host_id = net2_host
+
+        fake_rpc.get_network_list().AndReturn(provisioned_networks)
+
+        self.mocker.ReplayAll()
+
+        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv.create_tenant_network(network_id)
+
+        # wrapper.plug_host_into_vlan() shouldn't be called in this case
+        drv.plug_host(network_id, segmentation_id, host_id)
 
     def test_rpc_brocker_method_is_called(self):
         fake_rpc_broker = self.mocker.CreateMock(AristaRPCWrapper)

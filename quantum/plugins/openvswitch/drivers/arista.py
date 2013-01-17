@@ -52,7 +52,16 @@ class AristaRPCWrapper(object):
 
     def get_network_list(self):
         """
-        Returns list of all networks known by vEOS
+        Returns dict of all networks known by vEOS. The dict format is as
+        follows:
+           {networkId:
+             {
+               'hostId': [list of hosts connected to the network],
+               'name': network name, currently quantum net id,
+               'segmentationId': VLAN id,
+               'segmentationType': L2 segmentation type; currently 'vlan' only
+             }
+           }
         """
         command_output = self._run_openstack_cmd(['show openstack'])
         networks = command_output[0]['networks']
@@ -153,7 +162,9 @@ class AristaRPCWrapper(object):
 class AristaOVSDriver(OVSDriverAPI):
     """
     OVS driver for Arista networking hardware. Currently works in VLAN mode
-    only.
+    only. Remembers all VLANs provisioned. Does not send VLAN provisioning
+    request if the VLAN has already been provisioned before for the given
+    port.
     """
 
     def __init__(self, rpc=None, cfg=ARISTA_CONF):
@@ -174,10 +185,15 @@ class AristaOVSDriver(OVSDriverAPI):
             self._forget_network(network_id)
 
     def unplug_host(self, network_id, segmentation_id, host_id):
-        if self._vlans_used():
-            self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
-                                           host_id)
-        self._forget_host(network_id, segmentation_id, host_id)
+        was_provisioned = self._is_network_provisioned(network_id,
+                                                       segmentation_id,
+                                                       host_id)
+
+        if was_provisioned:
+            if self._vlans_used():
+                self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
+                                               host_id)
+            self._forget_host(network_id, host_id)
 
     def plug_host(self, network_id, segmentation_id, host_id):
         already_provisioned = self._is_network_provisioned(network_id,
@@ -190,7 +206,7 @@ class AristaOVSDriver(OVSDriverAPI):
                                              segmentation_id,
                                              host_id)
 
-        self._remember_host(network_id, host_id)
+        self._remember_host(network_id, segmentation_id, host_id)
 
     def get_tenant_network(self, context, networkd_id=None):
         pass
@@ -210,12 +226,13 @@ class AristaOVSDriver(OVSDriverAPI):
         return (known_segm_id == segmentation_id) and \
                any([host_id == h for h in known_host_ids])
 
-    def _remember_host(self, network_id, host_id):
+    def _remember_host(self, network_id, segmentation_id, host_id):
         nets = self._provisioned_nets
         if network_id in nets:
             hosts = nets[network_id]['hostId']
             hosts.append(host_id)
             nets[network_id]['hostId'] = hosts
+            nets[network_id]['segmentationId'] = segmentation_id
 
     def _forget_host(self, network_id, host_id):
         nets = self._provisioned_nets
@@ -230,17 +247,13 @@ class AristaOVSDriver(OVSDriverAPI):
             else:
                 nets[network_id]['hostId'] = hosts
 
-    def _remember_network(self, network_id, segmentation_id=None,
-                          host_id=None):
-        if network_id in self._provisioned_nets:
-            host_ids = self._provisioned_nets[network_id]['hostId']
-            host_ids.append(host_id)
-
-        self._provisioned_nets[network_id] = {
-            'segmentationId': segmentation_id,
-            'hostId': host_ids,
-            'segmentationType': self.segmentation_type
-        }
+    def _remember_network(self, network_id):
+        if network_id not in self._provisioned_nets:
+            self._provisioned_nets[network_id] = {
+                'segmentationId': None,
+                'hostId': [],
+                'segmentationType': self.segmentation_type
+            }
 
     def _forget_network(self, network_id):
         del self._provisioned_nets[network_id]
