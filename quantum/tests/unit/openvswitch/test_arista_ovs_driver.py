@@ -15,10 +15,12 @@
 # limitations under the License.
 
 from mox import IsA
-from quantum.plugins.openvswitch.drivers.arista import AristaException
+from quantum.plugins.openvswitch.drivers.arista import AristaConfigurationException
 from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
 from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
+from quantum.plugins.openvswitch.drivers.arista import AristaRpcException
 from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
+import jsonrpclib
 import mox
 import unittest
 
@@ -39,9 +41,17 @@ class FakeConfig(object):
 
 
 class AristaRPCWrapperTestCase(unittest.TestCase):
+    def setUp(self):
+        self.mocker = mox.Mox()
+
+    def tearDown(self):
+        self.mocker.VerifyAll()
+        self.mocker.UnsetStubs()
+
     def test_raises_exception_on_wrong_configuration(self):
         fake_config = FakeConfig()
-        self.assertRaises(AristaException, AristaRPCWrapper, fake_config)
+        self.assertRaises(AristaConfigurationException, AristaRPCWrapper,
+                          fake_config)
 
     def test_no_exception_on_correct_configuration(self):
         fake_config = FakeConfig('some_value')
@@ -50,23 +60,65 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
 
         self.assertNotEqual(obj, None)
 
-    def test_rpc_response_sent(self):
-        mocker = mox.Mox()
-
+    def test_get_network_info_returns_none_when_no_such_net(self):
         fake_config = FakeConfig('some_value')
+        drv = AristaRPCWrapper(fake_config)
+        unavailable_network_id = '12345'
+
+        self.mocker.StubOutWithMock(drv, 'get_network_list')
+        drv.get_network_list().AndReturn([])
+
+        self.mocker.ReplayAll()
+
+        net_info = drv.get_network_info(unavailable_network_id)
+        self.assertEqual(net_info, None, ('Network info must be "None"'
+                                          'for unknown network'))
+
+    def test_get_network_info_returns_info_for_available_net(self):
+        fake_config = FakeConfig('some_value')
+        drv = AristaRPCWrapper(fake_config)
+        valid_network_id = '12345'
+        valid_net_info = {'network_id': valid_network_id,
+                          'some_info': 'net info'}
+        known_nets = [valid_net_info]
+
+        self.mocker.StubOutWithMock(drv, 'get_network_list')
+        drv.get_network_list().AndReturn(known_nets)
+
+        self.mocker.ReplayAll()
+
+        net_info = drv.get_network_info(valid_network_id)
+        self.assertEqual(net_info, valid_net_info,
+                         ('Must return network info for a valid net'))
+
+    def test_rpc_is_sent(self):
+        fake_config = FakeConfig('some_value')
+        fake_net = {'networks': 123}
+        cli_ret = [{}, {}, fake_net, {}]
+
+        fake_jsonrpc_server = self.mocker.CreateMockAnything()
+        fake_jsonrpc_server.runCli(cmds=IsA(list)).AndReturn(cli_ret)
 
         drv = AristaRPCWrapper(fake_config)
-        mocker.StubOutWithMock(drv, '_run_openstack_cmd')
-        drv._run_openstack_cmd(IsA(list))
+        drv._server = fake_jsonrpc_server
 
-        mocker.ReplayAll()
+        self.mocker.ReplayAll()
 
-        network_id = 123
-        vlan_id = 123
-        host_id = 123
-        drv.plug_host_into_vlan(network_id, vlan_id, host_id)
+        drv.get_network_list()
 
-        mocker.VerifyAll()
+    def test_exception_is_raised_on_json_server_error(self):
+        fake_config = FakeConfig('some_value')
+
+        fake_jsonrpc_server = self.mocker.CreateMockAnything()
+        fake_jsonrpc_server.runCli(cmds=IsA(list)).\
+                            AndRaise(jsonrpclib.ProtocolError('server error'))
+
+        drv = AristaRPCWrapper(fake_config)
+        drv._server = fake_jsonrpc_server
+
+        self.mocker.ReplayAll()
+
+        self.assertRaises(AristaRpcException, drv.get_network_list)
 
 
 class AristaOVSDriverTestCase(unittest.TestCase):

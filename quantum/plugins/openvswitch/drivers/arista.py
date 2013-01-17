@@ -17,7 +17,6 @@
 from quantum.common.exceptions import QuantumException
 from quantum.plugins.openvswitch.common.config import cfg
 from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
-from quantum.plugins.openvswitch.ovs_driver_api import TUNNEL_SEGMENTATION
 from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 import jsonrpclib
 import logging
@@ -29,19 +28,19 @@ LOG = logging.getLogger(__name__)
 ARISTA_CONF = cfg.CONF.OVS_DRIVER
 
 
-class AristaException(QuantumException):
+class AristaRpcException(QuantumException):
     message = _('%(msg)s')
 
-    def __init__(self, message):
-        self.message = message
-        super(AristaException, self).__init__()
+
+class AristaConfigurationException(QuantumException):
+    message = _('%(msg)s')
 
 
 class AristaRPCWrapper(object):
     """
     Wraps Arista JSON RPC.
-    vEOS - operating system used in Arista hardware
-    EAPI - JSON RPC API provided by Arista vEOS
+    vEOS - operating system used on Arista hardware
+    Command API - JSON RPC API provided by Arista vEOS
     TOR - Top Of Rack switch, Arista HW switch
     """
     required_options = ['arista_eapi_pass',
@@ -80,11 +79,6 @@ class AristaRPCWrapper(object):
         :param vlan_id: VLAN ID
         :param host: compute node to be connected to a VLAN
         """
-        LOG.info('plug_host_into_vlan')
-        LOG.info('hostname: %s' % host)
-        LOG.info('network_id: %s' % network_id)
-        LOG.info('vlan_id: %s' % vlan_id)
-
         cmds = ['tenant-network %s' % network_id,
                 'type vlan id %s host %s' % (vlan_id, host)]
         self._run_openstack_cmd(cmds)
@@ -129,20 +123,20 @@ class AristaRPCWrapper(object):
             # Remove return values for 'configure terminal',
             # 'management openstack' and 'exit' commands
             ret = ret[2:-1]
-        except Exception as ex:
+        except jsonrpclib.ProtocolError as ex:
             msg = ('Error %s while trying to execute commands %s on vEOS '
                    '%s') % (ex.message, full_command,
                             ARISTA_CONF.arista_eapi_host)
             LOG.error(msg)
-            # TODO: Uncomment this! Commented until we get working vEOS image
-            # raise AristaException(msg)
+            raise AristaRpcException(msg=msg)
 
         return ret
 
     def _eapi_host_url(self, config):
         self._validate_config(config)
 
-        eapi_server_url = 'https://%s:%s@%s/eapi' % (config.arista_eapi_user,
+        eapi_server_url = 'https://%s:%s@%s/command-api' % (
+                                                     config.arista_eapi_user,
                                                      config.arista_eapi_pass,
                                                      config.arista_eapi_host)
 
@@ -153,13 +147,13 @@ class AristaRPCWrapper(object):
             if config.get(option) is None:
                 msg = 'Required option %s is not set' % option
                 LOG.error(msg)
-                raise AristaException(msg)
+                raise AristaConfigurationException(msg=msg)
 
 
 class AristaOVSDriver(OVSDriverAPI):
     """
     OVS driver for Arista networking hardware. Currently works in VLAN mode
-    only, tunnelling L2 segregation is not supported.
+    only.
     """
 
     def __init__(self, rpc=None, cfg=ARISTA_CONF):
@@ -175,7 +169,7 @@ class AristaOVSDriver(OVSDriverAPI):
         self._remember_network(network_id)
 
     def delete_tenant_network(self, context, network_id):
-        if self._network_provisioned(network_id):
+        if self._is_network_provisioned(network_id):
             self.rpc.delete_network(network_id)
             self._forget_network(network_id)
 
@@ -183,29 +177,26 @@ class AristaOVSDriver(OVSDriverAPI):
         if self._vlans_used():
             self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
                                            host_id)
-        self._forget_network(network_id, segmentation_id, host_id)
+        self._forget_host(network_id, segmentation_id, host_id)
 
     def plug_host(self, context, network_id, segmentation_id, host_id):
-        already_provisioned = self._network_provisioned(network_id,
-                                                        segmentation_id,
-                                                        host_id)
+        already_provisioned = self._is_network_provisioned(network_id,
+                                                           segmentation_id,
+                                                           host_id)
 
         if not already_provisioned:
             if self._vlans_used():
                 self.rpc.plug_host_into_vlan(network_id,
                                              segmentation_id,
                                              host_id)
-            elif self._tunnels_used():
-                # Does nothing currently
-                pass
 
-        self._remember_network(network_id, segmentation_id, host_id)
+        self._remember_host(network_id, host_id)
 
     def get_tenant_network(self, context, networkd_id=None):
         pass
 
-    def _network_provisioned(self, network_id, segmentation_id=None,
-                             host_id=None):
+    def _is_network_provisioned(self, network_id, segmentation_id=None,
+                                host_id=None):
         known_nets = self._provisioned_nets
 
         if network_id not in known_nets:
@@ -214,29 +205,48 @@ class AristaOVSDriver(OVSDriverAPI):
             return True
 
         known_segm_id = known_nets[network_id]['segmentationId']
-        known_host_id = known_nets[network_id]['hostId']
+        known_host_ids = known_nets[network_id]['hostId']
 
         return (known_segm_id == segmentation_id) and \
-               (known_host_id == host_id)
+               any([host_id == h for h in known_host_ids])
+
+    def _remember_host(self, network_id, host_id):
+        nets = self._provisioned_nets
+        if network_id in nets:
+            hosts = nets[network_id]['hostId']
+            hosts.append(host_id)
+            nets[network_id]['hostId'] = hosts
+
+    def _forget_host(self, network_id, host_id):
+        nets = self._provisioned_nets
+        if network_id in nets:
+            hosts = nets[network_id]['hostId']
+            if host_id in hosts:
+                hosts.remove(host_id)
+
+            # remove entire network if host list is empty
+            if not hosts:
+                self._forget_network(network_id)
+            else:
+                nets[network_id]['hostId'] = hosts
 
     def _remember_network(self, network_id, segmentation_id=None,
                           host_id=None):
-        # TODO: There must be a list of hostIds. Currently - single item.
+        if network_id in self._provisioned_nets:
+            host_ids = self._provisioned_nets[network_id]['hostId']
+            host_ids.append(host_id)
+
         self._provisioned_nets[network_id] = {
             'segmentationId': segmentation_id,
-            'hostId': host_id,
+            'hostId': host_ids,
             'segmentationType': self.segmentation_type
         }
 
-    def _forget_network(self, network_id, segmentation_id=None, host_id=None):
-        # TODO: There must be a list of hostIds. Currently - single item.
+    def _forget_network(self, network_id):
         del self._provisioned_nets[network_id]
 
     def _vlans_used(self):
         return self._segm_type_used(VLAN_SEGMENTATION)
-
-    def _tunnels_used(self):
-        return self._segm_type_used(TUNNEL_SEGMENTATION)
 
     def _segm_type_used(self, segm_type):
         return self.segmentation_type == segm_type

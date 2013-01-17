@@ -27,7 +27,6 @@ from abc import ABCMeta, abstractmethod
 
 
 VLAN_SEGMENTATION = 'vlan'
-TUNNEL_SEGMENTATION = 'tunnel'
 
 
 class OVSDriverAPI(object):
