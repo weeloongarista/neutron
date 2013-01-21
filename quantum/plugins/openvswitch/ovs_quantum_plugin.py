@@ -455,7 +455,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self._extend_network_dict_provider(context, net)
             self._extend_network_dict_l3(context, net)
 
-        self._ovs_driver.on_network_update(context, id)
+        self._ovs_driver.on_network_update(context, id, network)
 
         return net
 
@@ -498,11 +498,9 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         return [self._fields(net, fields) for net in nets]
 
     def create_port(self, context, port):
-        port_dict = super(OVSQuantumPluginV2, self).create_port(context, port)
-
         self._ovs_driver.on_port_create(context, port)
 
-        return port_dict
+        return super(OVSQuantumPluginV2, self).create_port(context, port)
 
     def update_port(self, context, id, port):
         if self.agent_rpc:

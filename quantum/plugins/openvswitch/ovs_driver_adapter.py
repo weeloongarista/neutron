@@ -25,6 +25,10 @@ import logging
 LOG = logging.getLogger(__name__)
 
 
+class OVSDriverConfigError(QuantumException):
+    message = _('%(msg)s')
+
+
 class OVSDriverAdapter(object):
     """
     Adapts OVS driver API to OVS plugin incoming arguments.
@@ -38,7 +42,9 @@ class OVSDriverAdapter(object):
     def __init__(self):
         for opt in self.required_options:
             if opt not in cfg.CONF.OVS_DRIVER:
-                raise QuantumException('Required option %s is not set' % opt)
+                msg = 'Required option %s is not set' % opt
+                LOG.error(msg)
+                raise OVSDriverConfigError(msg=msg)
 
         ovs_driver_class = importutils.import_class(
                                             cfg.CONF.OVS_DRIVER['ovs_driver'])
@@ -72,7 +78,7 @@ class OVSDriverAdapter(object):
 
         self._driver.create_tenant_network(network['id'])
 
-    def on_network_update(self, context, network_id):
+    def on_network_update(self, context, network_id, network):
         if not self.driver_available:
             return
         # TODO: analize what has changed and then act appropriately

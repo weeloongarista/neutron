@@ -28,11 +28,11 @@ LOG = logging.getLogger(__name__)
 ARISTA_CONF = cfg.CONF.OVS_DRIVER
 
 
-class AristaRpcException(QuantumException):
+class AristaRpcError(QuantumException):
     message = _('%(msg)s')
 
 
-class AristaConfigException(QuantumException):
+class AristaConfigError(QuantumException):
     message = _('%(msg)s')
 
 
@@ -132,12 +132,12 @@ class AristaRPCWrapper(object):
             # Remove return values for 'configure terminal',
             # 'management openstack' and 'exit' commands
             ret = ret[2:-1]
-        except jsonrpclib.ProtocolError as ex:
+        except Exception as ex:
             msg = ('Error %s while trying to execute commands %s on vEOS '
                    '%s') % (ex.message, full_command,
                             ARISTA_CONF.arista_eapi_host)
             LOG.error(msg)
-            raise AristaRpcException(msg=msg)
+            raise AristaRpcError(msg=msg)
 
         return ret
 
@@ -156,7 +156,7 @@ class AristaRPCWrapper(object):
             if config.get(option) is None:
                 msg = 'Required option %s is not set' % option
                 LOG.error(msg)
-                raise AristaConfigException(msg=msg)
+                raise AristaConfigError(msg=msg)
 
 
 class AristaOVSDriver(OVSDriverAPI):
