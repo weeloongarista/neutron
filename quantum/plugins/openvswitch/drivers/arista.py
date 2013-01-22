@@ -134,8 +134,7 @@ class AristaRPCWrapper(object):
             ret = ret[2:-1]
         except Exception as ex:
             msg = ('Error %s while trying to execute commands %s on vEOS '
-                   '%s') % (ex.message, full_command,
-                            ARISTA_CONF.arista_eapi_host)
+                   '%s') % (ex, full_command, ARISTA_CONF.arista_eapi_host)
             LOG.error(msg)
             raise AristaRpcError(msg=msg)
 
