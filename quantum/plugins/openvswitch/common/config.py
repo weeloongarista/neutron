@@ -52,6 +52,30 @@ agent_opts = [
     cfg.StrOpt('root_helper', default='sudo'),
 ]
 
+generic_ovs_driver_opts = [
+    cfg.StrOpt('ovs_driver',
+            default='quantum.plugins.openvswitch.drivers.dummy.DummyOVSDriver',
+            help='OVS driver used as a backend.'),
+    cfg.StrOpt('ovs_driver_segmentation_type',
+            default='vlan',
+            help=('L2 segregation type to be used on hardware routers. One of '
+                  'vlan or tunnel is supported.'))
+]
+
+arista_driver_opts = [
+    cfg.StrOpt('arista_eapi_user',
+               default=None,
+               help='Username for Arista vEOS'),
+    cfg.StrOpt('arista_eapi_pass',
+               default=None,
+               help='Password for Arista vEOS'),
+    cfg.StrOpt('arista_eapi_host',
+               default=None,
+               help='Arista vEOS host IP')
+]
+
 
 cfg.CONF.register_opts(ovs_opts, "OVS")
 cfg.CONF.register_opts(agent_opts, "AGENT")
+cfg.CONF.register_opts(arista_driver_opts, "OVS_DRIVER")
+cfg.CONF.register_opts(generic_ovs_driver_opts, "OVS_DRIVER")

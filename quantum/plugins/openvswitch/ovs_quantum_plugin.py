@@ -44,6 +44,8 @@ from quantum.plugins.openvswitch.common import constants
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum import policy
 
+from quantum.plugins.openvswitch.ovs_driver_adapter import OVSDriverAdapter
+
 
 LOG = logging.getLogger(__name__)
 
@@ -226,6 +228,10 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                       "Agent terminated!"))
             sys.exit(1)
         self.setup_rpc()
+        self._initialize_ovs_driver()
+
+    def _initialize_ovs_driver(self):
+        self._ovs_driver = OVSDriverAdapter()
 
     def setup_rpc(self):
         # RPC support
@@ -437,6 +443,9 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self._extend_network_dict_provider(context, net)
             self._extend_network_dict_l3(context, net)
             # note - exception will rollback entire transaction
+
+        self._ovs_driver.on_network_create(context, net)
+
         LOG.debug(_("Created network: %s"), net['id'])
         return net
 
@@ -450,6 +459,9 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self._process_l3_update(context, network['network'], id)
             self._extend_network_dict_provider(context, net)
             self._extend_network_dict_l3(context, net)
+
+        self._ovs_driver.on_network_update(context, id, network)
+
         return net
 
     def delete_network(self, context, id):
@@ -467,6 +479,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                        self.network_vlan_ranges)
             # the network_binding record is deleted via cascade from
             # the network record, so explicit removal is not necessary
+        self._ovs_driver.on_network_delete(context, id)
         self.notifier.network_delete(context, id)
 
     def get_network(self, context, id, fields=None):
@@ -502,6 +515,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         return port
 
     def create_port(self, context, port):
+        self._ovs_driver.on_port_create(context, port)
         port = super(OVSQuantumPluginV2, self).create_port(context, port)
         return self._extend_port_dict_binding(context, port)
 
@@ -519,6 +533,9 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     def update_port(self, context, id, port):
         original_port = super(OVSQuantumPluginV2, self).get_port(context,
                                                                  id)
+
+        self._ovs_driver.on_port_update(context, id, port)
+
         port = super(OVSQuantumPluginV2, self).update_port(context, id, port)
         if original_port['admin_state_up'] != port['admin_state_up']:
             binding = ovs_db_v2.get_network_binding(None,
@@ -536,4 +553,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         if l3_port_check:
             self.prevent_l3_port_deletion(context, id)
         self.disassociate_floatingips(context, id)
+
+        self._ovs_driver.on_port_delete(context, port_id)
+
         return super(OVSQuantumPluginV2, self).delete_port(context, id)
