@@ -554,6 +554,6 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self.prevent_l3_port_deletion(context, id)
         self.disassociate_floatingips(context, id)
 
-        self._ovs_driver.on_port_delete(context, port_id)
+        self._ovs_driver.on_port_delete(context, id)
 
         return super(OVSQuantumPluginV2, self).delete_port(context, id)
