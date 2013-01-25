@@ -17,6 +17,9 @@ WebOb>=1.2
 python-keystoneclient>=0.2.0
 alembic>=0.4.1
 
+# Arista OVS driver dependency
+jsonrpclib
+
 # Cisco plugin dependencies
 python-novaclient
 # End Cisco dependencies
