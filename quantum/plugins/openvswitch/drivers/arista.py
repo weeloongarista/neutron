@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import jsonrpclib
+import logging
+
 from quantum.common.exceptions import QuantumException
 from quantum.plugins.openvswitch.common.config import cfg
 from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
 from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
-import jsonrpclib
-import logging
 
 
 LOG = logging.getLogger(__name__)

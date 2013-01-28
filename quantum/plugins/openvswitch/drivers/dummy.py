@@ -22,18 +22,17 @@ class DummyOVSDriver(OVSDriverAPI):
     Empty implementation of OVSDriverAPI. Used for common OVS plugin within
     Openstack
     """
-    def create_tenant_network(self, context, network_id, segmentation_id,
-                              segmentation_type):
+    def create_tenant_network(self, network_id):
         pass
 
-    def plug_host(self, context, network_id, segmentation_id, host_id):
+    def plug_host(self, network_id, segmentation_id, host_id):
         pass
 
-    def unplug_host(self, context, network_id, segmentation_id, host_id):
+    def unplug_host(self, network_id, segmentation_id, host_id):
         pass
 
-    def delete_tenant_network(self, context, network_id):
+    def delete_tenant_network(self, network_id):
         pass
 
-    def get_tenant_network(self, context, networkd_id=None):
+    def get_tenant_network(self, networkd_id=None):
         pass

@@ -53,9 +53,9 @@ agent_opts = [
 ]
 
 generic_ovs_driver_opts = [
-    cfg.StrOpt('ovs_driver',
+    cfg.ListOpt('ovs_drivers',
             default='quantum.plugins.openvswitch.drivers.dummy.DummyOVSDriver',
-            help='OVS driver used as a backend.'),
+            help='List of OVS drivers used as a backend.'),
     cfg.StrOpt('ovs_driver_segmentation_type',
             default='vlan',
             help=('L2 segregation type to be used on hardware routers. One of '
