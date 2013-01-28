@@ -17,7 +17,14 @@
 import jsonrpclib
 import logging
 
+from sqlalchemy import Column
+from sqlalchemy import Integer
+from sqlalchemy import String
+
+import quantum.db.api as db
+
 from quantum.common.exceptions import QuantumException
+from quantum.db import model_base
 from quantum.plugins.openvswitch.common.config import cfg
 from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
 from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
@@ -35,6 +42,105 @@ class AristaRpcError(QuantumException):
 
 class AristaConfigError(QuantumException):
     message = _('%(msg)s')
+
+
+# TODO: Move to a separate file
+class ProvisionedVlansStorage(object):
+    class AristaProvisionedVlans(model_base.BASEV2):
+        """
+        Stores VLANs provisioned on Arista vEOS. Allows to limit nubmer of RPC
+        calls to the vEOS command API in case VLAN was provisioned before.
+        """
+        __tablename__ = 'arista_provisioned_vlans'
+
+        id = Column(Integer, primary_key=True)
+        network_id = Column(String(36))
+        segmentation_id = Column(Integer)  # tunnel_id or vlan_id
+        host_id = Column(String(255))
+
+        def __init__(self, network_id, segmentation_id=None, host_id=None):
+            self.network_id = network_id
+            self.segmentation_id = segmentation_id
+            self.host_id = host_id
+
+        def __repr__(self):
+            return "<AristaProvisionedVlans(%s,%d,%s)>" % (self.network_id,
+                                                        self.segmentation_id,
+                                                        self.host_id)
+
+    def initialize(self):
+        db.configure_db()
+
+    def tear_down(self):
+        db.clear_db()
+
+    def remember_host(self, network_id, segmentation_id, host_id):
+        session = db.get_session()
+        with session.begin():
+            net = (session.query(self.AristaProvisionedVlans).
+                   filter_by(network_id=network_id).first())
+
+            if net and not net.segmentation_id and not net.host_id:
+                net.segmentation_id = segmentation_id
+                net.host_id = host_id
+            else:
+                provisioned_vlans = self.AristaProvisionedVlans(network_id,
+                                                            segmentation_id,
+                                                            host_id)
+                session.add(provisioned_vlans)
+
+    def forget_host(self, network_id, host_id):
+        session = db.get_session()
+        with session.begin():
+            (session.query(self.AristaProvisionedVlans).
+             filter_by(network_id=network_id, host_id=host_id).
+             delete())
+
+    def remember_network(self, network_id):
+        session = db.get_session()
+        with session.begin():
+            net = (session.query(self.AristaProvisionedVlans).
+                   filter_by(network_id=network_id).first())
+
+            if not net:
+                net = self.AristaProvisionedVlans(network_id)
+                session.add(net)
+
+    def forget_network(self, network_id):
+        session = db.get_session()
+        with session.begin():
+            (session.query(self.AristaProvisionedVlans).
+             filter_by(network_id=network_id).
+             delete())
+
+    def is_network_provisioned(self, network_id):
+        session = db.get_session()
+        with session.begin():
+            num_nets = (session.query(self.AristaProvisionedVlans).
+                        filter_by(network_id=network_id).count())
+            return num_nets > 0
+
+    def get_all(self):
+        session = db.get_session()
+        with session.begin():
+            return session.query(self.AristaProvisionedVlans).all()
+
+    def num_nets_provisioned(self):
+        session = db.get_session()
+        with session.begin():
+            return session.query(self.AristaProvisionedVlans).count()
+
+    def get_all_vlans_for_net(self, network_id):
+        session = db.get_session()
+        with session.begin():
+            return (session.query(self.AristaProvisionedVlans).
+                    filter_by(network_id=network_id).all())
+
+    def store_provisioned_vlans(self, networks):
+        for net in networks:
+            self.remember_host(net['networkId'],
+                               net['segmentationId'],
+                               net['hostId'])
 
 
 class AristaRPCWrapper(object):

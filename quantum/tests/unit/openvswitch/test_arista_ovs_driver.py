@@ -23,6 +23,7 @@ from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 import jsonrpclib
 import mox
 import unittest
+from quantum.plugins.openvswitch.drivers.arista import ProvisionedVlansStorage
 
 
 class FakeConfig(object):
@@ -39,6 +40,101 @@ class FakeConfig(object):
 
     def __getitem__(self, item):
         return self._opts[item]
+
+
+class AristaProvisionedVlansStorageTestCase(unittest.TestCase):
+    def setUp(self):
+        self.drv = ProvisionedVlansStorage()
+        self.drv.initialize()
+        self.mocker = mox.Mox()
+
+    def tearDown(self):
+        self.mocker.VerifyAll()
+        self.mocker.UnsetStubs()
+        self.drv.tear_down()
+
+    def test_network_is_remembered(self):
+        network_id = '123'
+        segmentation_id = 456
+        host_id = 'host123'
+
+        self.drv.remember_host(network_id, segmentation_id, host_id)
+        net_provisioned = self.drv.is_network_provisioned(network_id)
+        self.assertTrue(net_provisioned, 'Network must be provisioned')
+
+    def test_network_is_removed(self):
+        network_id = '123'
+
+        self.drv.remember_network(network_id)
+        self.drv.forget_network(network_id)
+
+        net_provisioned = self.drv.is_network_provisioned(network_id)
+
+        self.assertFalse(net_provisioned, 'The network should be deleted')
+
+    def test_remembers_multiple_networks(self):
+        expected_num_nets = 100
+        nets = ['id%s' % n for n in range(expected_num_nets)]
+        for net_id in nets:
+            self.drv.remember_network(net_id)
+            self.drv.remember_host(net_id, 123, 'host')
+
+        num_nets_provisioned = len(self.drv.get_all())
+
+        self.assertEqual(expected_num_nets, num_nets_provisioned,
+                         'There should be %(expected_num_nets)d '
+                         'nets, not %(num_nets_provisioned)d' % locals())
+
+    def test_removes_all_networks(self):
+        num_nets = 100
+        nets = ['id%s' % n for n in range(num_nets)]
+        host_id = 'host123'
+        for net_id in nets:
+            self.drv.remember_network(net_id)
+            self.drv.remember_host(net_id, 123, host_id)
+            self.drv.forget_host(net_id, host_id)
+
+        num_nets_provisioned = self.drv.num_nets_provisioned()
+        expected = 0
+
+        self.assertEqual(expected, num_nets_provisioned,
+                         'There should be %(expected)d '
+                         'nets, not %(num_nets_provisioned)d' % locals())
+
+    def test_network_is_not_deleted_on_forget_host(self):
+        network_id = '123'
+        vlan_id = 123
+        host1_id = 'host1'
+        host2_id = 'host2'
+
+        self.drv.remember_network(network_id)
+        self.drv.remember_host(network_id, vlan_id, host1_id)
+        self.drv.remember_host(network_id, vlan_id, host2_id)
+        self.drv.forget_host(network_id, host2_id)
+
+        net_provisioned = self.drv.is_network_provisioned(network_id)
+
+        self.assertTrue(net_provisioned, 'The network should not be deleted')
+
+    def test_num_networks_is_valid(self):
+        network_id = '123'
+        vlan_id = 123
+        host1_id = 'host1'
+        host2_id = 'host2'
+        host3_id = 'host3'
+
+        self.drv.remember_network(network_id)
+        self.drv.remember_host(network_id, vlan_id, host1_id)
+        self.drv.remember_host(network_id, vlan_id, host2_id)
+        self.drv.remember_host(network_id, vlan_id, host3_id)
+        self.drv.forget_host(network_id, host2_id)
+
+        num_nets = len(self.drv.get_all_vlans_for_net(network_id))
+        expected = 2
+
+        self.assertEqual(expected, num_nets,
+                         'There should be %(expected)d records, '
+                         'got %(num_nets)d records' % locals())
 
 
 class AristaRPCWrapperTestCase(unittest.TestCase):
