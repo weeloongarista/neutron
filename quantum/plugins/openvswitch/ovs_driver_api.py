@@ -1,5 +1,5 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
-# Copyright (c) 2012 OpenStack, LLC.
+# Copyright (c) 2013 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,21 +18,19 @@
 Generic API within OVS driver. Allows for insertion of different backends
 to be used for L2 network connectivity.
 
-See: https://mirantis.jira.com/wiki/display/ARISTA/Full+specification
-TODO: Move link to globally-accessed place (launchpad.net)
+https://blueprints.launchpad.net/quantum/+spec/ovsplugin-hardware-devices
 """
 
-
-from abc import ABCMeta, abstractmethod
+import abc
 
 
 VLAN_SEGMENTATION = 'vlan'
 
 
 class OVSDriverAPI(object):
-    __metaclass__ = ABCMeta
+    __metaclass__ = abc.ABCMeta
 
-    @abstractmethod
+    @abc.abstractmethod
     def create_tenant_network(self, network_id):
         """
         Configures isolated L2 segment for a given tenant using :param
@@ -43,7 +41,7 @@ class OVSDriverAPI(object):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def plug_host(self, network_id, segmentation_id, host_id):
         """
         Connects L2 network with a compute node
@@ -53,7 +51,7 @@ class OVSDriverAPI(object):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def unplug_host(self, network_id, segmentation_id, host_id):
         """
         Removes connection between L2 network segment and a compute node
@@ -63,23 +61,12 @@ class OVSDriverAPI(object):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def delete_tenant_network(self, network_id):
         """
         Deletes L2 network segment (vlan or tunnel) configuration from the
         hardware
         :param context: quantum API request context
         :param network_id: globally-unique quantum network identifier
-        """
-        pass
-
-    @abstractmethod
-    def get_tenant_network(self, networkd_id=None):
-        """
-        If :param network_id: is not set - returns list of available L2
-        networks
-        If :param network_id: is set - returns detailed information about the
-        network
-        :param networkd_id: globally-unique quantum network identifier
         """
         pass

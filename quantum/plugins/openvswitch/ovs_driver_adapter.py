@@ -1,5 +1,5 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
-# Copyright (c) 2012 OpenStack, LLC.
+# Copyright (c) 2013 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from quantum.common.exceptions import QuantumException
+from quantum.common import exceptions
 from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
+from quantum.openstack.common import log as logging
 from quantum.plugins.openvswitch import ovs_db_v2
-from quantum.plugins.openvswitch.drivers.dummy import DummyOVSDriver
-import logging
+from quantum.plugins.openvswitch.drivers import dummy
 
 
 LOG = logging.getLogger(__name__)
 
+OVS_DRIVER_OPTS = [
+    cfg.StrOpt('ovs_driver',
+               default=('quantum.plugins.openvswitch.drivers.'
+                        'dummy.DummyOVSDriver'),
+               help=_('OVS driver used as a backend.')),
+    cfg.StrOpt('ovs_driver_segmentation_type',
+               default='vlan',
+               help=_('L2 segmentation type to be used on hardware routers. '
+                      'One of vlan or tunnel is supported.'))
+]
 
-class OVSDriverConfigError(QuantumException):
+
+cfg.CONF.register_opts(OVS_DRIVER_OPTS, "OVS_DRIVER")
+
+
+class OVSDriverConfigError(exceptions.QuantumException):
     message = _('%(msg)s')
 
 
@@ -46,12 +60,16 @@ class OVSDriverAdapter(object):
                 LOG.error(msg)
                 raise OVSDriverConfigError(msg=msg)
 
-        ovs_driver_class = importutils.import_class(
-                                            cfg.CONF.OVS_DRIVER['ovs_driver'])
+        driver_name = cfg.CONF.OVS_DRIVER['ovs_driver']
+        segm_type = cfg.CONF.OVS_DRIVER['ovs_driver_segmentation_type']
+
+        ovs_driver_class = importutils.import_class(driver_name)
+
         self._driver = ovs_driver_class()
+        self._driver.segmentation_type = segm_type
 
         OVSDriverAdapter.driver_available = (ovs_driver_class is
-                                             not DummyOVSDriver)
+                                             not dummy.DummyOVSDriver)
 
     def on_port_create(self, context, port):
         if not self.driver_available:

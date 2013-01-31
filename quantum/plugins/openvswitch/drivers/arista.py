@@ -1,5 +1,5 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
-# Copyright (c) 2012 OpenStack, LLC.
+# Copyright (c) 2013 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,25 +14,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from quantum.common.exceptions import QuantumException
-from quantum.plugins.openvswitch.common.config import cfg
-from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
-from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 import jsonrpclib
-import logging
+
+from quantum.common import exceptions
+from quantum.openstack.common import cfg
+from quantum.openstack.common import log as logging
+from quantum.plugins.openvswitch import ovs_driver_api
 
 
 LOG = logging.getLogger(__name__)
 
 
-ARISTA_CONF = cfg.CONF.OVS_DRIVER
+ARISTA_DRIVER_OPTS = [
+    cfg.StrOpt('arista_eapi_user',
+               default=None,
+               help=_('Username for Arista vEOS')),
+    cfg.StrOpt('arista_eapi_pass',
+               default=None,
+               help=_('Password for Arista vEOS')),
+    cfg.StrOpt('arista_eapi_host',
+               default=None,
+               help=_('Arista vEOS host IP'))
+]
+
+cfg.CONF.register_opts(ARISTA_DRIVER_OPTS, "ARISTA_DRIVER")
 
 
-class AristaRpcError(QuantumException):
+class AristaRpcError(exceptions.QuantumException):
     message = _('%(msg)s')
 
 
-class AristaConfigError(QuantumException):
+class AristaConfigError(exceptions.QuantumException):
     message = _('%(msg)s')
 
 
@@ -47,8 +59,8 @@ class AristaRPCWrapper(object):
                         'arista_eapi_host',
                         'arista_eapi_user']
 
-    def __init__(self, config=ARISTA_CONF):
-        self._server = jsonrpclib.Server(self._eapi_host_url(config))
+    def __init__(self):
+        self._server = jsonrpclib.Server(self._eapi_host_url())
 
     def get_network_list(self):
         """
@@ -115,10 +127,9 @@ class AristaRPCWrapper(object):
         if type(commands) is not list:
             commands = [commands]
 
-        full_command = ['configure terminal', 'management openstack']
-        for cmd in commands:
-            full_command.append(cmd)
-        full_command.append('exit')
+        command_start = ['configure', 'management openstack']
+        command_end = ['exit']
+        full_command = command_start + commands + command_end
 
         LOG.info('Executing command on Arista vEOS: %s', full_command)
 
@@ -127,38 +138,41 @@ class AristaRPCWrapper(object):
         try:
             # this returns array of return values for every command in
             # full_command list
-            ret = self._server.runCli(cmds=full_command)
+            ret = self._server.runCmds(cmds=full_command)
 
             # Remove return values for 'configure terminal',
             # 'management openstack' and 'exit' commands
-            ret = ret[2:-1]
-        except Exception as ex:
-            msg = ('Error %s while trying to execute commands %s on vEOS '
-                   '%s') % (ex, full_command, ARISTA_CONF.arista_eapi_host)
+            ret = ret[len(command_start):-len(command_end)]
+        except Exception as error:
+            host = cfg.CONF.ARISTA_DRIVER.arista_eapi_host
+            msg = ('Error %(error)s while trying to execute commands '
+                   '%(full_command)s on vEOS %(host)s') % locals()
             LOG.error(msg)
             raise AristaRpcError(msg=msg)
 
         return ret
 
-    def _eapi_host_url(self, config):
-        self._validate_config(config)
+    def _eapi_host_url(self):
+        self._validate_config()
 
-        eapi_server_url = 'https://%s:%s@%s/command-api' % (
-                                                     config.arista_eapi_user,
-                                                     config.arista_eapi_pass,
-                                                     config.arista_eapi_host)
+        user = cfg.CONF.ARISTA_DRIVER.arista_eapi_user
+        pwd = cfg.CONF.ARISTA_DRIVER.arista_eapi_pass
+        host = cfg.CONF.ARISTA_DRIVER.arista_eapi_host
+
+        eapi_server_url = ('https://%(user)s:%(pwd)s@%(host)s/command-api' %
+                           locals())
 
         return eapi_server_url
 
-    def _validate_config(self, config):
+    def _validate_config(self):
         for option in self.required_options:
-            if config.get(option) is None:
+            if cfg.CONF.ARISTA_DRIVER.get(option) is None:
                 msg = 'Required option %s is not set' % option
                 LOG.error(msg)
                 raise AristaConfigError(msg=msg)
 
 
-class AristaOVSDriver(OVSDriverAPI):
+class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
     """
     OVS driver for Arista networking hardware. Currently works in VLAN mode
     only. Remembers all VLANs provisioned. Does not send VLAN provisioning
@@ -166,14 +180,14 @@ class AristaOVSDriver(OVSDriverAPI):
     port.
     """
 
-    def __init__(self, rpc=None, cfg=ARISTA_CONF):
+    def __init__(self, rpc=None):
         if rpc is None:
             self.rpc = AristaRPCWrapper()
         else:
             self.rpc = rpc
 
         self._provisioned_nets = self.rpc.get_network_list()
-        self.segmentation_type = cfg['ovs_driver_segmentation_type']
+        self.segmentation_type = ovs_driver_api.VLAN_SEGMENTATION
 
     def create_tenant_network(self, network_id):
         self._remember_network(network_id)
@@ -207,9 +221,6 @@ class AristaOVSDriver(OVSDriverAPI):
 
         self._remember_host(network_id, segmentation_id, host_id)
 
-    def get_tenant_network(self, context, networkd_id=None):
-        pass
-
     def _is_network_provisioned(self, network_id, segmentation_id=None,
                                 host_id=None):
         known_nets = self._provisioned_nets
@@ -222,8 +233,8 @@ class AristaOVSDriver(OVSDriverAPI):
         known_segm_id = known_nets[network_id]['segmentationId']
         known_host_ids = known_nets[network_id]['hostId']
 
-        return (known_segm_id == segmentation_id) and \
-               any([host_id == h for h in known_host_ids])
+        return ((known_segm_id == segmentation_id) and
+                any([host_id == h for h in known_host_ids]))
 
     def _remember_host(self, network_id, segmentation_id, host_id):
         nets = self._provisioned_nets
@@ -258,7 +269,7 @@ class AristaOVSDriver(OVSDriverAPI):
         del self._provisioned_nets[network_id]
 
     def _vlans_used(self):
-        return self._segm_type_used(VLAN_SEGMENTATION)
+        return self._segm_type_used(ovs_driver_api.VLAN_SEGMENTATION)
 
     def _segm_type_used(self, segm_type):
         return self.segmentation_type == segm_type

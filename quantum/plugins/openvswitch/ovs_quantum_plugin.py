@@ -39,12 +39,11 @@ from quantum.openstack.common import cfg
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import rpc
 from quantum.openstack.common.rpc import proxy
+from quantum.plugins.openvswitch import ovs_driver_adapter
 from quantum.plugins.openvswitch.common import config
 from quantum.plugins.openvswitch.common import constants
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum import policy
-
-from quantum.plugins.openvswitch.ovs_driver_adapter import OVSDriverAdapter
 
 
 LOG = logging.getLogger(__name__)
@@ -231,7 +230,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         self._initialize_ovs_driver()
 
     def _initialize_ovs_driver(self):
-        self._ovs_driver = OVSDriverAdapter()
+        self._ovs_driver = ovs_driver_adapter.OVSDriverAdapter()
 
     def setup_rpc(self):
         # RPC support

@@ -14,60 +14,63 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mox import IsA
-from quantum.plugins.openvswitch.drivers.arista import AristaConfigError
-from quantum.plugins.openvswitch.drivers.arista import AristaOVSDriver
-from quantum.plugins.openvswitch.drivers.arista import AristaRPCWrapper
-from quantum.plugins.openvswitch.drivers.arista import AristaRpcError
-from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
 import jsonrpclib
 import mox
-import unittest
+import unittest2
 
 
-class FakeConfig(object):
-    def __init__(self, initial_value=None):
-        required_options = AristaRPCWrapper.required_options
-        # make compatible with python<=2.6
-        self._opts = dict([(opt, initial_value) for opt in required_options])
-
-    def get(self, item):
-        return self[item]
-
-    def __getattr__(self, attr):
-        return self[attr]
-
-    def __getitem__(self, item):
-        return self._opts[item]
+from quantum.openstack.common import cfg
+from quantum.plugins.openvswitch import ovs_driver_api
+from quantum.plugins.openvswitch.drivers import arista
 
 
-class AristaRPCWrapperTestCase(unittest.TestCase):
+def clear_config():
+    cfg.CONF.clear()
+
+
+def setup_arista_wrapper_config(value=None):
+    for opt in arista.AristaRPCWrapper.required_options:
+        cfg.CONF.set_override(opt, value, "ARISTA_DRIVER")
+
+
+class AristaRPCWrapperInvalidConfigTestCase(unittest2.TestCase):
     def setUp(self):
+        self.setup_invalid_config()  # Invalid config, required options not set
+
+    def tearDown(self):
+        clear_config()
+
+    def setup_invalid_config(self):
+        setup_arista_wrapper_config(None)
+
+    def test_raises_exception_on_wrong_configuration(self):
+        self.assertRaises(arista.AristaConfigError, arista.AristaRPCWrapper)
+
+
+class AristaRPCWrapperValidConfigTestCase(unittest2.TestCase):
+    def setUp(self):
+        self.setup_valid_config()
         self.mocker = mox.Mox()
 
     def tearDown(self):
         self.mocker.VerifyAll()
         self.mocker.UnsetStubs()
+        clear_config()
 
-    def test_raises_exception_on_wrong_configuration(self):
-        invalid_config = FakeConfig()
-        self.assertRaises(AristaConfigError, AristaRPCWrapper,
-                          invalid_config)
+    def setup_valid_config(self):
+        # Config is not valid if value is not set
+        setup_arista_wrapper_config('value')
 
     def test_no_exception_on_correct_configuration(self):
-        valid_config = FakeConfig('some_value')
-
-        obj = AristaRPCWrapper(valid_config)
+        obj = arista.AristaRPCWrapper()
 
         self.assertNotEqual(obj, None)
 
     def test_plug_host_into_vlan_calls_rpc(self):
-        fake_config = FakeConfig('some_value')
-
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
 
         self.mocker.StubOutWithMock(drv, '_run_openstack_cmd')
-        drv._run_openstack_cmd(IsA(list))
+        drv._run_openstack_cmd(mox.IsA(list))
 
         self.mocker.ReplayAll()
 
@@ -77,12 +80,10 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
         drv.plug_host_into_vlan(network_id, vlan_id, host)
 
     def test_unplug_host_from_vlan_calls_rpc(self):
-        fake_config = FakeConfig('some_value')
-
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
 
         self.mocker.StubOutWithMock(drv, '_run_openstack_cmd')
-        drv._run_openstack_cmd(IsA(list))
+        drv._run_openstack_cmd(mox.IsA(list))
 
         self.mocker.ReplayAll()
 
@@ -92,12 +93,10 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
         drv.unplug_host_from_vlan(network_id, vlan_id, host)
 
     def test_delete_network_calls_rpc(self):
-        fake_config = FakeConfig('some_value')
-
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
 
         self.mocker.StubOutWithMock(drv, '_run_openstack_cmd')
-        drv._run_openstack_cmd(IsA(list))
+        drv._run_openstack_cmd(mox.IsA(list))
 
         self.mocker.ReplayAll()
 
@@ -106,8 +105,7 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
         drv.delete_network(network_id)
 
     def test_get_network_info_returns_none_when_no_such_net(self):
-        fake_config = FakeConfig('some_value')
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
         unavailable_network_id = '12345'
 
         self.mocker.StubOutWithMock(drv, 'get_network_list')
@@ -120,8 +118,7 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
                                           'for unknown network'))
 
     def test_get_network_info_returns_info_for_available_net(self):
-        fake_config = FakeConfig('some_value')
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
         valid_network_id = '12345'
         valid_net_info = {'network_id': valid_network_id,
                           'some_info': 'net info'}
@@ -137,14 +134,13 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
                          ('Must return network info for a valid net'))
 
     def test_rpc_is_sent(self):
-        fake_config = FakeConfig('some_value')
         fake_net = {'networks': 123}
         cli_ret = [{}, {}, fake_net, {}]
 
         fake_jsonrpc_server = self.mocker.CreateMockAnything()
-        fake_jsonrpc_server.runCli(cmds=IsA(list)).AndReturn(cli_ret)
+        fake_jsonrpc_server.runCmds(cmds=mox.IsA(list)).AndReturn(cli_ret)
 
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
         drv._server = fake_jsonrpc_server
 
         self.mocker.ReplayAll()
@@ -152,21 +148,19 @@ class AristaRPCWrapperTestCase(unittest.TestCase):
         drv.get_network_list()
 
     def test_exception_is_raised_on_json_server_error(self):
-        fake_config = FakeConfig('some_value')
-
         fake_jsonrpc_server = self.mocker.CreateMockAnything()
-        fake_jsonrpc_server.runCli(cmds=IsA(list)).\
-                            AndRaise(jsonrpclib.ProtocolError('server error'))
+        (fake_jsonrpc_server.runCmds(cmds=mox.IsA(list)).
+         AndRaise(jsonrpclib.ProtocolError('server error')))
 
-        drv = AristaRPCWrapper(fake_config)
+        drv = arista.AristaRPCWrapper()
         drv._server = fake_jsonrpc_server
 
         self.mocker.ReplayAll()
 
-        self.assertRaises(AristaRpcError, drv.get_network_list)
+        self.assertRaises(arista.AristaRpcError, drv.get_network_list)
 
 
-class AristaOVSDriverTestCase(unittest.TestCase):
+class AristaOVSDriverTestCase(unittest2.TestCase):
     def setUp(self):
         self.mocker = mox.Mox()
 
@@ -177,26 +171,24 @@ class AristaOVSDriverTestCase(unittest.TestCase):
     def test_no_rpc_call_on_delete_network_if_it_was_not_provisioned(self):
         network_id = 'net1-id'
 
-        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc = self.mocker.CreateMock(arista.AristaRPCWrapper)
         fake_rpc.get_network_list().AndReturn({})
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
 
         self.mocker.ReplayAll()
 
-        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc)
         drv.delete_tenant_network(network_id)
 
     def test_deletes_network_if_it_was_provisioned_before(self):
         network_id = 'net1-id'
 
-        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc = self.mocker.CreateMock(arista.AristaRPCWrapper)
         fake_rpc.get_network_list().AndReturn({})
         fake_rpc.delete_network(network_id)
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
 
         self.mocker.ReplayAll()
 
-        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc)
         drv.create_tenant_network(network_id)
         drv.delete_tenant_network(network_id)
 
@@ -205,13 +197,12 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         vlan_id = 123
         host_id = 'ubuntu123'
 
-        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc = self.mocker.CreateMock(arista.AristaRPCWrapper)
         fake_rpc.get_network_list().AndReturn({})
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
 
         self.mocker.ReplayAll()
 
-        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc)
         drv.create_tenant_network(network_id)
         drv.unplug_host(network_id, vlan_id, host_id)
 
@@ -221,7 +212,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         host1_id = 'ubuntu1'
         host2_id = 'ubuntu2'
 
-        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc = self.mocker.CreateMock(arista.AristaRPCWrapper)
         fake_rpc.get_network_list().AndReturn({})
         fake_rpc.plug_host_into_vlan(network_id, vlan_id, host1_id)
         fake_rpc.plug_host_into_vlan(network_id, vlan_id, host2_id)
@@ -230,9 +221,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
 
         self.mocker.ReplayAll()
 
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
-
-        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc)
         drv.create_tenant_network(network_id)
 
         drv.plug_host(network_id, vlan_id, host1_id)
@@ -245,15 +234,13 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         vlan_id = 1001
         host_id = 'ubuntu1'
 
-        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
+        fake_rpc = self.mocker.CreateMock(arista.AristaRPCWrapper)
         fake_rpc.get_network_list().AndReturn({})
         fake_rpc.plug_host_into_vlan(network_id, vlan_id, host_id)
 
         self.mocker.ReplayAll()
 
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
-
-        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc)
 
         # Common use-case:
         #   1. User creates network - quantum net-create net1
@@ -267,10 +254,9 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         drv.plug_host(network_id, vlan_id, host_id)
 
     def test_rpc_request_not_sent_for_existing_vlan_after_start(self):
-        fake_rpc = self.mocker.CreateMock(AristaRPCWrapper)
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
+        fake_rpc = self.mocker.CreateMock(arista.AristaRPCWrapper)
 
-        seg_type = fake_conf['ovs_driver_segmentation_type']
+        seg_type = ovs_driver_api.VLAN_SEGMENTATION
         net1_id = 'net1-id'
         net2_id = 'net2-id'
         net2_vlan = 1002
@@ -292,15 +278,14 @@ class AristaOVSDriverTestCase(unittest.TestCase):
 
         self.mocker.ReplayAll()
 
-        drv = AristaOVSDriver(fake_rpc, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc)
         drv.create_tenant_network(network_id)
 
         # wrapper.plug_host_into_vlan() should not be called in this case
         drv.plug_host(network_id, segmentation_id, host_id)
 
     def test_rpc_brocker_method_is_called(self):
-        fake_rpc_broker = self.mocker.CreateMock(AristaRPCWrapper)
-        fake_conf = {'ovs_driver_segmentation_type': VLAN_SEGMENTATION}
+        fake_rpc_broker = self.mocker.CreateMock(arista.AristaRPCWrapper)
 
         network_id = 123
         vlan_id = 123
@@ -311,6 +296,6 @@ class AristaOVSDriverTestCase(unittest.TestCase):
 
         self.mocker.ReplayAll()
 
-        drv = AristaOVSDriver(fake_rpc_broker, fake_conf)
+        drv = arista.AristaOVSDriver(fake_rpc_broker)
 
         drv.plug_host(network_id, vlan_id, host_id)
