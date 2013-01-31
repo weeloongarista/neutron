@@ -18,7 +18,6 @@ import jsonrpclib
 import mox
 import unittest2
 
-
 from quantum.openstack.common import cfg
 from quantum.plugins.openvswitch import ovs_driver_api
 from quantum.plugins.openvswitch.drivers import arista
