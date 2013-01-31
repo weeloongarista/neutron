@@ -131,7 +131,7 @@ class AristaRPCWrapper(object):
         command_end = ['exit']
         full_command = command_start + commands + command_end
 
-        LOG.info('Executing command on Arista vEOS: %s', full_command)
+        LOG.info(_('Executing command on Arista vEOS: %s'), full_command)
 
         ret = None
 
@@ -145,8 +145,8 @@ class AristaRPCWrapper(object):
             ret = ret[len(command_start):-len(command_end)]
         except Exception as error:
             host = cfg.CONF.ARISTA_DRIVER.arista_eapi_host
-            msg = ('Error %(error)s while trying to execute commands '
-                   '%(full_command)s on vEOS %(host)s') % locals()
+            msg = _('Error %(error)s while trying to execute commands '
+                    '%(full_command)s on vEOS %(host)s') % locals()
             LOG.error(msg)
             raise AristaRpcError(msg=msg)
 
@@ -167,7 +167,7 @@ class AristaRPCWrapper(object):
     def _validate_config(self):
         for option in self.required_options:
             if cfg.CONF.ARISTA_DRIVER.get(option) is None:
-                msg = 'Required option %s is not set' % option
+                msg = _('Required option %s is not set') % option
                 LOG.error(msg)
                 raise AristaConfigError(msg=msg)
 

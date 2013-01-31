@@ -56,7 +56,7 @@ class OVSDriverAdapter(object):
     def __init__(self):
         for opt in self.required_options:
             if opt not in cfg.CONF.OVS_DRIVER:
-                msg = 'Required option %s is not set' % opt
+                msg = _('Required option %s is not set') % opt
                 LOG.error(msg)
                 raise OVSDriverConfigError(msg=msg)
 
