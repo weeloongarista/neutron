@@ -80,15 +80,9 @@ class OVSDriverAdapter(object):
         network_id = p['network_id']
         binding = ovs_db_v2.get_network_binding(None, network_id)
         segmentation_id = binding.segmentation_id
-        hypervisor = p['hostname']
+        host = p['hostname']
 
-        self._driver.plug_host(network_id, segmentation_id, hypervisor)
-
-    def on_port_delete(self, context, port):
-        pass
-
-    def on_port_update(self, context, old_port_id, new_port):
-        pass
+        self._driver.plug_host(network_id, segmentation_id, host)
 
     def on_network_create(self, context, network):
         if not self.driver_available:
