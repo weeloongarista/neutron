@@ -113,11 +113,20 @@ class ProvisionedVlansStorage(object):
              filter_by(network_id=network_id).
              delete())
 
-    def is_network_provisioned(self, network_id):
+    def is_network_provisioned(self, network_id,
+                               segmentation_id=None,
+                               host_id=None):
         session = db.get_session()
         with session.begin():
-            num_nets = (session.query(self.AristaProvisionedVlans).
-                        filter_by(network_id=network_id).count())
+            num_nets = 0
+            if not segmentation_id and not host_id:
+                num_nets = (session.query(self.AristaProvisionedVlans).
+                            filter_by(network_id=network_id).count())
+            else:
+                num_nets = (session.query(self.AristaProvisionedVlans).
+                            filter_by(network_id=network_id,
+                                      segmentation_id=segmentation_id,
+                                      host_id=host_id).count())
             return num_nets > 0
 
     def get_all(self):
@@ -273,25 +282,28 @@ class AristaOVSDriver(OVSDriverAPI):
     port.
     """
 
-    def __init__(self, rpc=None, cfg=ARISTA_CONF):
+    def __init__(self, rpc=None,
+                 cfg=ARISTA_CONF,
+                 net_storage=ProvisionedVlansStorage()):
         if rpc is None:
             self.rpc = AristaRPCWrapper()
         else:
             self.rpc = rpc
 
-        self._provisioned_nets = self.rpc.get_network_list()
+        self.net_storage = net_storage
+        self.net_storage.initialize()
         self.segmentation_type = cfg['ovs_driver_segmentation_type']
 
     def create_tenant_network(self, network_id):
-        self._remember_network(network_id)
+        self.net_storage.remember_network(network_id)
 
     def delete_tenant_network(self, network_id):
-        if self._is_network_provisioned(network_id):
+        if self.net_storage.is_network_provisioned(network_id):
             self.rpc.delete_network(network_id)
-            self._forget_network(network_id)
+            self.net_storage.forget_network(network_id)
 
     def unplug_host(self, network_id, segmentation_id, host_id):
-        was_provisioned = self._is_network_provisioned(network_id,
+        was_provisioned = self.net_storage.is_network_provisioned(network_id,
                                                        segmentation_id,
                                                        host_id)
 
@@ -299,10 +311,11 @@ class AristaOVSDriver(OVSDriverAPI):
             if self._vlans_used():
                 self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
                                                host_id)
-            self._forget_host(network_id, host_id)
+            self.net_storage.forget_host(network_id, host_id)
 
     def plug_host(self, network_id, segmentation_id, host_id):
-        already_provisioned = self._is_network_provisioned(network_id,
+        already_provisioned = self.net_storage.is_network_provisioned(
+                                                           network_id,
                                                            segmentation_id,
                                                            host_id)
 
@@ -312,57 +325,10 @@ class AristaOVSDriver(OVSDriverAPI):
                                              segmentation_id,
                                              host_id)
 
-        self._remember_host(network_id, segmentation_id, host_id)
+        self.net_storage.remember_host(network_id, segmentation_id, host_id)
 
     def get_tenant_network(self, context, networkd_id=None):
         pass
-
-    def _is_network_provisioned(self, network_id, segmentation_id=None,
-                                host_id=None):
-        known_nets = self._provisioned_nets
-
-        if network_id not in known_nets:
-            return False
-        elif segmentation_id is None and host_id is None:
-            return True
-
-        known_segm_id = known_nets[network_id]['segmentationId']
-        known_host_ids = known_nets[network_id]['hostId']
-
-        return (known_segm_id == segmentation_id) and \
-               any([host_id == h for h in known_host_ids])
-
-    def _remember_host(self, network_id, segmentation_id, host_id):
-        nets = self._provisioned_nets
-        if network_id in nets:
-            hosts = nets[network_id]['hostId']
-            hosts.append(host_id)
-            nets[network_id]['hostId'] = hosts
-            nets[network_id]['segmentationId'] = segmentation_id
-
-    def _forget_host(self, network_id, host_id):
-        nets = self._provisioned_nets
-        if network_id in nets:
-            hosts = nets[network_id]['hostId']
-            if host_id in hosts:
-                hosts.remove(host_id)
-
-            # remove entire network if host list is empty
-            if not hosts:
-                self._forget_network(network_id)
-            else:
-                nets[network_id]['hostId'] = hosts
-
-    def _remember_network(self, network_id):
-        if network_id not in self._provisioned_nets:
-            self._provisioned_nets[network_id] = {
-                'segmentationId': None,
-                'hostId': [],
-                'segmentationType': self.segmentation_type
-            }
-
-    def _forget_network(self, network_id):
-        del self._provisioned_nets[network_id]
 
     def _vlans_used(self):
         return self._segm_type_used(VLAN_SEGMENTATION)
