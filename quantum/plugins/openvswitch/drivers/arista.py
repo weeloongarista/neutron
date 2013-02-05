@@ -1,5 +1,5 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
-# Copyright (c) 2012 OpenStack, LLC.
+# Copyright (c) 2013 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,48 +15,55 @@
 # limitations under the License.
 
 import jsonrpclib
-import logging
-
-from sqlalchemy import Column
-from sqlalchemy import Integer
-from sqlalchemy import String
+import sqlalchemy
 
 import quantum.db.api as db
-
-from quantum.common.exceptions import QuantumException
 from quantum.db import model_base
-from quantum.plugins.openvswitch.common.config import cfg
-from quantum.plugins.openvswitch.ovs_driver_api import OVSDriverAPI
-from quantum.plugins.openvswitch.ovs_driver_api import VLAN_SEGMENTATION
+from quantum.common import exceptions
+from quantum.openstack.common import cfg
+from quantum.openstack.common import log as logging
+from quantum.plugins.openvswitch import ovs_driver_api
 
 
 LOG = logging.getLogger(__name__)
 
 
-ARISTA_CONF = cfg.CONF.OVS_DRIVER
+ARISTA_DRIVER_OPTS = [
+    cfg.StrOpt('arista_eapi_user',
+               default=None,
+               help=_('Username for Arista vEOS')),
+    cfg.StrOpt('arista_eapi_pass',
+               default=None,
+               help=_('Password for Arista vEOS')),
+    cfg.StrOpt('arista_eapi_host',
+               default=None,
+               help=_('Arista vEOS host IP'))
+]
+
+cfg.CONF.register_opts(ARISTA_DRIVER_OPTS, "ARISTA_DRIVER")
 
 
-class AristaRpcError(QuantumException):
+class AristaRpcError(exceptions.QuantumException):
     message = _('%(msg)s')
 
 
-class AristaConfigError(QuantumException):
+class AristaConfigError(exceptions.QuantumException):
     message = _('%(msg)s')
 
 
 # TODO: Move to a separate file
-class ProvisionedVlansStorage(object):
-    class AristaProvisionedVlans(model_base.BASEV2):
+class ProvisionedNetsStorage(object):
+    class AristaProvisionedNets(model_base.BASEV2):
         """
         Stores VLANs provisioned on Arista vEOS. Allows to limit nubmer of RPC
         calls to the vEOS command API in case VLAN was provisioned before.
         """
-        __tablename__ = 'arista_provisioned_vlans'
+        __tablename__ = 'arista_provisioned_nets'
 
-        id = Column(Integer, primary_key=True)
-        network_id = Column(String(36))
-        segmentation_id = Column(Integer)  # tunnel_id or vlan_id
-        host_id = Column(String(255))
+        id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+        network_id = sqlalchemy.Column(sqlalchemy.String(36))
+        segmentation_id = sqlalchemy.Column(sqlalchemy.Integer)
+        host_id = sqlalchemy.Column(sqlalchemy.String(255))
 
         def __init__(self, network_id, segmentation_id=None, host_id=None):
             self.network_id = network_id
@@ -64,9 +71,9 @@ class ProvisionedVlansStorage(object):
             self.host_id = host_id
 
         def __repr__(self):
-            return "<AristaProvisionedVlans(%s,%d,%s)>" % (self.network_id,
-                                                        self.segmentation_id,
-                                                        self.host_id)
+            return "<AristaProvisionedNets(%s,%d,%s)>" % (self.network_id,
+                                                          self.segmentation_id,
+                                                          self.host_id)
 
     def initialize(self):
         db.configure_db()
@@ -77,39 +84,39 @@ class ProvisionedVlansStorage(object):
     def remember_host(self, network_id, segmentation_id, host_id):
         session = db.get_session()
         with session.begin():
-            net = (session.query(self.AristaProvisionedVlans).
+            net = (session.query(self.AristaProvisionedNets).
                    filter_by(network_id=network_id).first())
 
             if net and not net.segmentation_id and not net.host_id:
                 net.segmentation_id = segmentation_id
                 net.host_id = host_id
             else:
-                provisioned_vlans = self.AristaProvisionedVlans(network_id,
-                                                            segmentation_id,
-                                                            host_id)
+                provisioned_vlans = self.AristaProvisionedNets(network_id,
+                                                               segmentation_id,
+                                                               host_id)
                 session.add(provisioned_vlans)
 
     def forget_host(self, network_id, host_id):
         session = db.get_session()
         with session.begin():
-            (session.query(self.AristaProvisionedVlans).
+            (session.query(self.AristaProvisionedNets).
              filter_by(network_id=network_id, host_id=host_id).
              delete())
 
     def remember_network(self, network_id):
         session = db.get_session()
         with session.begin():
-            net = (session.query(self.AristaProvisionedVlans).
+            net = (session.query(self.AristaProvisionedNets).
                    filter_by(network_id=network_id).first())
 
             if not net:
-                net = self.AristaProvisionedVlans(network_id)
+                net = self.AristaProvisionedNets(network_id)
                 session.add(net)
 
     def forget_network(self, network_id):
         session = db.get_session()
         with session.begin():
-            (session.query(self.AristaProvisionedVlans).
+            (session.query(self.AristaProvisionedNets).
              filter_by(network_id=network_id).
              delete())
 
@@ -120,10 +127,10 @@ class ProvisionedVlansStorage(object):
         with session.begin():
             num_nets = 0
             if not segmentation_id and not host_id:
-                num_nets = (session.query(self.AristaProvisionedVlans).
+                num_nets = (session.query(self.AristaProvisionedNets).
                             filter_by(network_id=network_id).count())
             else:
-                num_nets = (session.query(self.AristaProvisionedVlans).
+                num_nets = (session.query(self.AristaProvisionedNets).
                             filter_by(network_id=network_id,
                                       segmentation_id=segmentation_id,
                                       host_id=host_id).count())
@@ -132,17 +139,17 @@ class ProvisionedVlansStorage(object):
     def get_all(self):
         session = db.get_session()
         with session.begin():
-            return session.query(self.AristaProvisionedVlans).all()
+            return session.query(self.AristaProvisionedNets).all()
 
     def num_nets_provisioned(self):
         session = db.get_session()
         with session.begin():
-            return session.query(self.AristaProvisionedVlans).count()
+            return session.query(self.AristaProvisionedNets).count()
 
     def get_all_vlans_for_net(self, network_id):
         session = db.get_session()
         with session.begin():
-            return (session.query(self.AristaProvisionedVlans).
+            return (session.query(self.AristaProvisionedNets).
                     filter_by(network_id=network_id).all())
 
     def store_provisioned_vlans(self, networks):
@@ -163,8 +170,8 @@ class AristaRPCWrapper(object):
                         'arista_eapi_host',
                         'arista_eapi_user']
 
-    def __init__(self, config=ARISTA_CONF):
-        self._server = jsonrpclib.Server(self._eapi_host_url(config))
+    def __init__(self):
+        self._server = jsonrpclib.Server(self._eapi_host_url())
 
     def get_network_list(self):
         """
@@ -231,50 +238,52 @@ class AristaRPCWrapper(object):
         if type(commands) is not list:
             commands = [commands]
 
-        full_command = ['configure terminal', 'management openstack']
-        for cmd in commands:
-            full_command.append(cmd)
-        full_command.append('exit')
+        command_start = ['configure', 'management openstack']
+        command_end = ['exit']
+        full_command = command_start + commands + command_end
 
-        LOG.info('Executing command on Arista vEOS: %s', full_command)
+        LOG.info(_('Executing command on Arista vEOS: %s'), full_command)
 
         ret = None
 
         try:
             # this returns array of return values for every command in
             # full_command list
-            ret = self._server.runCli(cmds=full_command)
+            ret = self._server.runCmds(cmds=full_command)
 
             # Remove return values for 'configure terminal',
             # 'management openstack' and 'exit' commands
-            ret = ret[2:-1]
-        except Exception as ex:
-            msg = ('Error %s while trying to execute commands %s on vEOS '
-                   '%s') % (ex, full_command, ARISTA_CONF.arista_eapi_host)
+            ret = ret[len(command_start):-len(command_end)]
+        except Exception as error:
+            host = cfg.CONF.ARISTA_DRIVER.arista_eapi_host
+            msg = _('Error %(error)s while trying to execute commands '
+                    '%(full_command)s on vEOS %(host)s') % locals()
             LOG.error(msg)
             raise AristaRpcError(msg=msg)
 
         return ret
 
-    def _eapi_host_url(self, config):
-        self._validate_config(config)
+    def _eapi_host_url(self):
+        self._validate_config()
 
-        eapi_server_url = 'https://%s:%s@%s/command-api' % (
-                                                     config.arista_eapi_user,
-                                                     config.arista_eapi_pass,
-                                                     config.arista_eapi_host)
+        user = cfg.CONF.ARISTA_DRIVER.arista_eapi_user
+        pwd = cfg.CONF.ARISTA_DRIVER.arista_eapi_pass
+        host = cfg.CONF.ARISTA_DRIVER.arista_eapi_host
+
+        eapi_server_url = ('https://%(user)s:%(pwd)s@%(host)s/command-api' %
+                           locals())
 
         return eapi_server_url
 
-    def _validate_config(self, config):
+    def _validate_config(self):
         for option in self.required_options:
-            if config.get(option) is None:
-                msg = 'Required option %s is not set' % option
+            if cfg.CONF.ARISTA_DRIVER.get(option) is None:
+                msg = _('Required option %s is not set') % option
                 LOG.error(msg)
                 raise AristaConfigError(msg=msg)
 
 
-class AristaOVSDriver(OVSDriverAPI):
+class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
     """
     OVS driver for Arista networking hardware. Currently works in VLAN mode
     only. Remembers all VLANs provisioned. Does not send VLAN provisioning
@@ -282,9 +291,7 @@ class AristaOVSDriver(OVSDriverAPI):
     port.
     """
 
-    def __init__(self, rpc=None,
-                 cfg=ARISTA_CONF,
-                 net_storage=ProvisionedVlansStorage()):
+    def __init__(self, rpc=None, net_storage=ProvisionedNetsStorage()):
         if rpc is None:
             self.rpc = AristaRPCWrapper()
         else:
@@ -292,7 +299,7 @@ class AristaOVSDriver(OVSDriverAPI):
 
         self.net_storage = net_storage
         self.net_storage.initialize()
-        self.segmentation_type = cfg['ovs_driver_segmentation_type']
+        self.segmentation_type = ovs_driver_api.VLAN_SEGMENTATION
 
     def create_tenant_network(self, network_id):
         self.net_storage.remember_network(network_id)
@@ -303,21 +310,22 @@ class AristaOVSDriver(OVSDriverAPI):
             self.net_storage.forget_network(network_id)
 
     def unplug_host(self, network_id, segmentation_id, host_id):
-        was_provisioned = self.net_storage.is_network_provisioned(network_id,
-                                                       segmentation_id,
-                                                       host_id)
+        storage = self.net_storage
+        was_provisioned = storage.is_network_provisioned(network_id,
+                                                         segmentation_id,
+                                                         host_id)
 
         if was_provisioned:
             if self._vlans_used():
                 self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
                                                host_id)
-            self.net_storage.forget_host(network_id, host_id)
+            storage.forget_host(network_id, host_id)
 
     def plug_host(self, network_id, segmentation_id, host_id):
-        already_provisioned = self.net_storage.is_network_provisioned(
-                                                           network_id,
-                                                           segmentation_id,
-                                                           host_id)
+        storage = self.net_storage
+        already_provisioned = storage.is_network_provisioned(network_id,
+                                                             segmentation_id,
+                                                             host_id)
 
         if not already_provisioned:
             if self._vlans_used():
@@ -325,13 +333,10 @@ class AristaOVSDriver(OVSDriverAPI):
                                              segmentation_id,
                                              host_id)
 
-        self.net_storage.remember_host(network_id, segmentation_id, host_id)
-
-    def get_tenant_network(self, context, networkd_id=None):
-        pass
+        storage.remember_host(network_id, segmentation_id, host_id)
 
     def _vlans_used(self):
-        return self._segm_type_used(VLAN_SEGMENTATION)
+        return self._segm_type_used(ovs_driver_api.VLAN_SEGMENTATION)
 
     def _segm_type_used(self, segm_type):
         return self.segmentation_type == segm_type

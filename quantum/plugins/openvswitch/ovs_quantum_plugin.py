@@ -39,12 +39,11 @@ from quantum.openstack.common import cfg
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import rpc
 from quantum.openstack.common.rpc import proxy
+from quantum.plugins.openvswitch import ovs_driver_adapter
 from quantum.plugins.openvswitch.common import config
 from quantum.plugins.openvswitch.common import constants
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum import policy
-
-from quantum.plugins.openvswitch.ovs_driver_adapter import OVSDriverAdapter
 
 
 LOG = logging.getLogger(__name__)
@@ -231,7 +230,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         self._initialize_ovs_driver()
 
     def _initialize_ovs_driver(self):
-        self._ovs_driver = OVSDriverAdapter()
+        self._ovs_driver = ovs_driver_adapter.OVSDriverAdapter()
 
     def setup_rpc(self):
         # RPC support
@@ -534,8 +533,6 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         original_port = super(OVSQuantumPluginV2, self).get_port(context,
                                                                  id)
 
-        self._ovs_driver.on_port_update(context, id, port)
-
         port = super(OVSQuantumPluginV2, self).update_port(context, id, port)
         if original_port['admin_state_up'] != port['admin_state_up']:
             binding = ovs_db_v2.get_network_binding(None,
@@ -553,7 +550,5 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         if l3_port_check:
             self.prevent_l3_port_deletion(context, id)
         self.disassociate_floatingips(context, id)
-
-        self._ovs_driver.on_port_delete(context, id)
 
         return super(OVSQuantumPluginV2, self).delete_port(context, id)
