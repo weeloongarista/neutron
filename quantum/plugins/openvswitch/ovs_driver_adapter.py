@@ -20,6 +20,7 @@ from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum.plugins.openvswitch.drivers import dummy
+from quantum.extensions import portbindings
 
 
 LOG = logging.getLogger(__name__)
