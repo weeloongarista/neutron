@@ -20,6 +20,7 @@ from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.plugins.openvswitch import ovs_db_v2
 from quantum.plugins.openvswitch.drivers import dummy
+from quantum.extensions import portbindings
 
 
 LOG = logging.getLogger(__name__)
@@ -76,13 +77,18 @@ class OVSDriverAdapter(object):
             return
 
         p = port['port']
+        host = p.get('hostname')
 
-        network_id = p['network_id']
-        binding = ovs_db_v2.get_network_binding(None, network_id)
-        segmentation_id = binding.segmentation_id
-        host = p['hostname']
+        if host:
+            network_id = p['network_id']
+            binding = ovs_db_v2.get_network_binding(None, network_id)
+            segmentation_id = binding.segmentation_id
 
-        self._driver.plug_host(network_id, segmentation_id, host)
+            self._driver.plug_host(network_id, segmentation_id, host)
+
+    def on_port_update(self, context, port, network_id):
+        port['port']['network_id'] = network_id
+        self.on_port_create(context, port)
 
     def on_network_create(self, context, network):
         if not self.driver_available:
