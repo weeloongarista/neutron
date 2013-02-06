@@ -76,6 +76,8 @@ class OVSDriverAdapter(object):
             return
 
         p = port['port']
+        # TODO: use portbindings extension here (bindings:host_id) once nova
+        #       supports it
         host = p.get('hostname')
 
         if host:
