@@ -148,7 +148,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         network_id = 'net1-id'
 
         self.fake_rpc.get_network_list.return_value = {}
-        self.drv.delete_tenant_network(network_id)
+        self.drv.delete_network(network_id)
 
         self.fake_rpc.get_network_list.assert_called_once_with()
 
@@ -157,8 +157,8 @@ class AristaOVSDriverTestCase(unittest.TestCase):
 
         self.fake_rpc.delete_network(network_id)
 
-        self.drv.create_tenant_network(network_id)
-        self.drv.delete_tenant_network(network_id)
+        self.drv.create_network(network_id)
+        self.drv.delete_network(network_id)
 
         self.fake_rpc.delete_network.assert_called_once_with(network_id)
 
@@ -167,7 +167,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         vlan_id = 123
         host_id = 'ubuntu123'
 
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
         self.drv.unplug_host(network_id, vlan_id, host_id)
 
     def test_rpc_request_sent_for_existing_vlan_on_unplug_host(self):
@@ -176,7 +176,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         host1_id = 'ubuntu1'
         host2_id = 'ubuntu2'
 
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
 
         self.drv.plug_host(network_id, vlan_id, host1_id)
         self.drv.plug_host(network_id, vlan_id, host2_id)
@@ -201,7 +201,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         #   2. Boots 3 VMs connected to previously created quantum network
         #      'net1', and VMs are scheduled on the same hypervisor
         # In this case RPC request must be sent only once
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
 
         self.drv.plug_host(network_id, vlan_id, host_id)
         self.drv.plug_host(network_id, vlan_id, host_id)
@@ -232,7 +232,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         fake_rpc.get_network_list.return_value = provisioned_networks
 
         drv = arista.AristaOVSDriver(fake_rpc)
-        drv.create_tenant_network(network_id)
+        drv.create_network(network_id)
 
         # wrapper.plug_host_into_vlan() should not be called in this case
         drv.plug_host(network_id, segmentation_id, host_id)

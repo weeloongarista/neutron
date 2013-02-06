@@ -189,10 +189,10 @@ class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
         self._provisioned_nets = self.rpc.get_network_list()
         self.segmentation_type = ovs_driver_api.VLAN_SEGMENTATION
 
-    def create_tenant_network(self, network_id):
+    def create_network(self, network_id):
         self._remember_network(network_id)
 
-    def delete_tenant_network(self, network_id):
+    def delete_network(self, network_id):
         if self._is_network_provisioned(network_id):
             self.rpc.delete_network(network_id)
             self._forget_network(network_id)
