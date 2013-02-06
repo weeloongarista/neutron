@@ -301,10 +301,10 @@ class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
         self.net_storage.initialize()
         self.segmentation_type = ovs_driver_api.VLAN_SEGMENTATION
 
-    def create_tenant_network(self, network_id):
+    def create_network(self, network_id):
         self.net_storage.remember_network(network_id)
 
-    def delete_tenant_network(self, network_id):
+    def delete_network(self, network_id):
         if self.net_storage.is_network_provisioned(network_id):
             self.rpc.delete_network(network_id)
             self.net_storage.forget_network(network_id)

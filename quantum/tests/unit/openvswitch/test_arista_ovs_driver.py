@@ -278,8 +278,8 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
 
         self.net_storage_mock.is_network_provisioned.return_value = True
 
-        self.drv.create_tenant_network(network_id)
-        self.drv.delete_tenant_network(network_id)
+        self.drv.create_network(network_id)
+        self.drv.delete_network(network_id)
 
         self.net_storage_mock.remember_network.assert_called_once_with(
                                                                     network_id)
@@ -292,9 +292,7 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
         vlan_id = 123
         host_id = 'ubuntu123'
 
-        self.net_storage_mock.is_network_provisioned.return_value = False
-
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
         self.drv.unplug_host(network_id, vlan_id, host_id)
 
         self.net_storage_mock.remember_network.assert_called_once_with(
@@ -309,20 +307,20 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
         host1_id = 'ubuntu1'
         host2_id = 'ubuntu2'
 
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
 
         self.drv.plug_host(network_id, vlan_id, host1_id)
         self.drv.plug_host(network_id, vlan_id, host2_id)
         self.drv.unplug_host(network_id, vlan_id, host2_id)
         self.drv.unplug_host(network_id, vlan_id, host1_id)
-        
+
         expected_plugs = [(network_id, vlan_id, host1_id),
                           (network_id, vlan_id, host2_id)]
         expected_unplugs = [(network_id, vlan_id, host2_id),
                             (network_id, vlan_id, host1_id)]
         
-        self.fake_rpc.plug_host_into_vlan.call_args_list = expected_plugs
-        self.fake_rpc.unplug_host_into_vlan.call_args_list = expected_unplugs
+        self.fake_rpc.plug_host_into_vlan.call_arg_list = expected_plugs
+        self.fake_rpc.unplug_host_from_vlan.call_arg_list = expected_unplugs
 
 
 class RealNetStorageOVSDriverTestCase(unittest.TestCase):
@@ -345,7 +343,7 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
         #   2. Boots 3 VMs connected to previously created quantum network
         #      'net1', and VMs are scheduled on the same hypervisor
         # In this case RPC request must be sent only once
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
 
         self.drv.plug_host(network_id, vlan_id, host_id)
         self.drv.plug_host(network_id, vlan_id, host_id)
@@ -370,7 +368,7 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
         for net, vlan, host in provisioned_networks:
             self.net_storage.remember_host(net, vlan, host)
 
-        self.drv.create_tenant_network(network_id)
+        self.drv.create_network(network_id)
 
         # wrapper.plug_host_into_vlan() should not be called in this case
         self.drv.plug_host(network_id, segmentation_id, host_id)

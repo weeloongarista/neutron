@@ -82,6 +82,8 @@ class OVSDriverAdapter(object):
             return
 
         p = port['port']
+        # TODO: use portbindings extension here (bindings:host_id) once nova
+        #       supports it
         host = p.get('hostname')
 
         # If 'hostname' is not provided, the user has not booted nova instance
@@ -94,9 +96,8 @@ class OVSDriverAdapter(object):
             for driver in self._drivers:
                 driver.plug_host(network_id, segmentation_id, host)
 
-        self._do_plug_host(port['port'])
-
-    def on_port_update(self, context, port):
+    def on_port_update(self, context, port, network_id):
+        port['port']['network_id'] = network_id
         self.on_port_create(context, port)
 
     def on_network_create(self, context, network):

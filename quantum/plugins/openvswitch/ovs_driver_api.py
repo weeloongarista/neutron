@@ -31,7 +31,7 @@ class OVSDriverAPI(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def create_tenant_network(self, network_id):
+    def create_network(self, network_id):
         """
         Configures isolated L2 segment for a given tenant using :param
         segmentation_type:.
@@ -62,7 +62,7 @@ class OVSDriverAPI(object):
         pass
 
     @abc.abstractmethod
-    def delete_tenant_network(self, network_id):
+    def delete_network(self, network_id):
         """
         Deletes L2 network segment (vlan or tunnel) configuration from the
         hardware
