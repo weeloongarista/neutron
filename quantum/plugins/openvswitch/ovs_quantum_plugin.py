@@ -205,6 +205,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
     binding_set = "extension:port_binding:set"
 
     def __init__(self, configfile=None):
+        self._initialize_ovs_driver()
         ovs_db_v2.initialize()
         self._parse_network_vlan_ranges()
         ovs_db_v2.sync_vlan_allocations(self.network_vlan_ranges)
@@ -227,7 +228,6 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                       "Agent terminated!"))
             sys.exit(1)
         self.setup_rpc()
-        self._initialize_ovs_driver()
 
     def _initialize_ovs_driver(self):
         self._ovs_driver = ovs_driver_adapter.OVSDriverAdapter()
