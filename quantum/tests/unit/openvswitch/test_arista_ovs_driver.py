@@ -271,7 +271,7 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
 
         self.net_storage_mock.is_network_provisioned.return_value = False
 
-        self.drv.delete_tenant_network(network_id)
+        self.drv.delete_network(network_id)
 
     def test_deletes_network_if_it_was_provisioned_before(self):
         network_id = 'net1-id'

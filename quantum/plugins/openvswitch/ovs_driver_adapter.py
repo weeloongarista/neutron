@@ -105,7 +105,7 @@ class OVSDriverAdapter(object):
             return
 
         for driver in self._drivers:
-            driver.create_tenant_network(network['id'])
+            driver.create_network(network['id'])
 
     def on_network_update(self, context, network_id, network):
         if not self.drivers_available:
@@ -117,7 +117,7 @@ class OVSDriverAdapter(object):
             return
 
         for driver in self._drivers:
-            driver.delete_tenant_network(network_id)
+            driver.delete_network(network_id)
 
     def _unique(self, sequence):
         keys = {}

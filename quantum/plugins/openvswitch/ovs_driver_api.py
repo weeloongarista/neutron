@@ -47,7 +47,7 @@ class OVSDriverAPI(object):
         Connects L2 network with a compute node
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel ID
-        :param host_id: hypervisor (compute node)
+        :param host_id: compute node
         """
         pass
 
@@ -57,7 +57,7 @@ class OVSDriverAPI(object):
         Removes connection between L2 network segment and a compute node
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel ID
-        :param host_id: hypervisor (compute node)
+        :param host_id: compute node
         """
         pass
 
