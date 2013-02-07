@@ -551,5 +551,4 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         if l3_port_check:
             self.prevent_l3_port_deletion(context, id)
         self.disassociate_floatingips(context, id)
-
         return super(OVSQuantumPluginV2, self).delete_port(context, id)
