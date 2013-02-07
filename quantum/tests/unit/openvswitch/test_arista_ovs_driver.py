@@ -121,15 +121,15 @@ class AristaProvisionedVlansStorageTestCase(unittest.TestCase):
         self.drv.forget_host(network_id, removed_host)
 
         network_is_available = self.drv.is_network_provisioned(network_id)
-        removed_host_is_available = self.drv.is_network_provisioned(
-                                                           network_id,
-                                                           vlan_id,
-                                                           removed_host)
+        removed_host_is_available = (self.drv.
+                                     is_network_provisioned(network_id,
+                                                            vlan_id,
+                                                            removed_host))
 
         self.assertTrue(network_is_available,
                         'The network should stay available')
         self.assertFalse(removed_host_is_available,
-                        '%(removed_host)s should not be available' % locals())
+                         '%(removed_host)s should not be available' % locals())
 
     def test_num_networks_is_valid(self):
         network_id = '123'
@@ -150,8 +150,6 @@ class AristaProvisionedVlansStorageTestCase(unittest.TestCase):
         self.assertEqual(expected, num_nets,
                          'There should be %(expected)d records, '
                          'got %(num_nets)d records' % locals())
-
-
 
 
 class AristaRPCWrapperInvalidConfigTestCase(unittest.TestCase):
@@ -275,31 +273,30 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
 
     def test_deletes_network_if_it_was_provisioned_before(self):
         network_id = 'net1-id'
+        net_mock = self.net_storage_mock
 
-        self.net_storage_mock.is_network_provisioned.return_value = True
+        net_mock.is_network_provisioned.return_value = True
 
         self.drv.create_network(network_id)
         self.drv.delete_network(network_id)
 
-        self.net_storage_mock.remember_network.assert_called_once_with(
-                                                                    network_id)
+        net_mock.remember_network.assert_called_once_with(network_id)
         self.fake_rpc.delete_network.assert_called_once_with(network_id)
-        self.net_storage_mock.forget_network.assert_called_once_with(
-                                                                    network_id)
+        net_mock.forget_network.assert_called_once_with(network_id)
 
     def test_rpc_request_not_sent_for_non_existing_host_unplug(self):
         network_id = 'net1-id'
         vlan_id = 123
         host_id = 'ubuntu123'
+        net_mock = self.net_storage_mock
 
         self.drv.create_network(network_id)
         self.drv.unplug_host(network_id, vlan_id, host_id)
 
-        self.net_storage_mock.remember_network.assert_called_once_with(
-                                                                    network_id)
-        (self.net_storage_mock.is_network_provisioned.
-         assert_called_once_with(network_id, vlan_id, host_id))
-
+        net_mock.remember_network.assert_called_once_with(network_id)
+        net_mock.is_network_provisioned.assert_called_once_with(network_id,
+                                                                vlan_id,
+                                                                host_id)
 
     def test_rpc_request_sent_for_existing_vlan_on_unplug_host(self):
         network_id = 'net1-id'
@@ -318,7 +315,7 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
                           (network_id, vlan_id, host2_id)]
         expected_unplugs = [(network_id, vlan_id, host2_id),
                             (network_id, vlan_id, host1_id)]
-        
+
         self.fake_rpc.plug_host_into_vlan.call_arg_list = expected_plugs
         self.fake_rpc.unplug_host_from_vlan.call_arg_list = expected_unplugs
 
@@ -349,8 +346,9 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
         self.drv.plug_host(network_id, vlan_id, host_id)
         self.drv.plug_host(network_id, vlan_id, host_id)
 
-        self.fake_rpc.plug_host_into_vlan.assert_called_once_with(
-                                                network_id, vlan_id, host_id)
+        self.fake_rpc.plug_host_into_vlan.assert_called_once_with(network_id,
+                                                                  vlan_id,
+                                                                  host_id)
 
     def test_rpc_request_not_sent_for_existing_vlan_after_start(self):
         net1_id = 'net1-id'
