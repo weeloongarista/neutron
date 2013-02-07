@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from quantum.common import exceptions
+from quantum.extensions import portbindings
 from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
@@ -82,9 +83,7 @@ class OVSDriverAdapter(object):
             return
 
         p = port['port']
-        # TODO: use portbindings extension here (bindings:host_id) once nova
-        #       supports it
-        host = p.get('hostname')
+        host = p.get(portbindings.HOST_ID)
 
         # If 'hostname' is not provided, the user has not booted nova instance
         # yet, do nothing.
