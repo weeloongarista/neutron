@@ -119,6 +119,8 @@ class OVSDriverAdapter(object):
             driver.delete_network(network_id)
 
     def _unique(self, sequence):
+        if type(sequence) is str:
+            return [sequence]
         keys = {}
         for el in sequence:
             keys[el] = 1
