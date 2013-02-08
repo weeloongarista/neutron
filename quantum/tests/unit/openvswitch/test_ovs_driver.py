@@ -56,7 +56,7 @@ class OVSDriverAdapterTestCase(unittest.TestCase):
 
     def test_calls_all_drivers(self):
         self._config_multiple_drivers()
-        
+
         drv = driver_adapter.DriverAdapter(self._valid_get_vlan_id)
         net_id = '123'
         network = {'id': net_id}
@@ -67,7 +67,7 @@ class OVSDriverAdapterTestCase(unittest.TestCase):
         drv._drivers = [fake_dummy_drv, fake_ovs_drv]
 
         drv.on_network_create(network)
-        
+
         fake_dummy_drv.create_network.assert_called_once_with(net_id)
         fake_ovs_drv.create_network.assert_called_once_with(net_id)
 
