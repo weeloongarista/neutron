@@ -115,8 +115,9 @@ class DriverAdapter(object):
         self._driver.delete_network(network_id)
 
     def _verify_get_segmentation_id(self, get_segmentation_id_delegate):
-        if (not get_segmentation_id_delegate or
-            not inspect.isroutine(get_segmentation_id_delegate)):
+        valid_delegate = (get_segmentation_id_delegate and
+                          inspect.isroutine(get_segmentation_id_delegate))
+        if not valid_delegate:
             msg = _('Invalid get_segmentation_id routine passed.')
             raise InvalidDelegateError(msg=msg)
 
