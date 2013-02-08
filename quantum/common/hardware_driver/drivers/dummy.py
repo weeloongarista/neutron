@@ -14,13 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from quantum.plugins.openvswitch import ovs_driver_api
+from quantum.common.hardware_driver import driver_api
 
 
-class DummyOVSDriver(ovs_driver_api.OVSDriverAPI):
+class DummyDriver(driver_api.HardwareDriverAPI):
     """
-    Empty implementation of OVSDriverAPI. Used for common OVS plugin within
-    Openstack
+    Empty implementation of HardwareDriverAPI.
     """
     def create_network(self, network_id):
         pass

@@ -19,7 +19,7 @@ import jsonrpclib
 from quantum.common import exceptions
 from quantum.openstack.common import cfg
 from quantum.openstack.common import log as logging
-from quantum.plugins.openvswitch import ovs_driver_api
+from quantum.common.hardware_driver import driver_api
 
 
 LOG = logging.getLogger(__name__)
@@ -172,7 +172,7 @@ class AristaRPCWrapper(object):
                 raise AristaConfigError(msg=msg)
 
 
-class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
+class AristaDriver(driver_api.HardwareDriverAPI):
     """
     OVS driver for Arista networking hardware. Currently works in VLAN mode
     only. Remembers all VLANs provisioned. Does not send VLAN provisioning
@@ -187,7 +187,7 @@ class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
             self.rpc = rpc
 
         self._provisioned_nets = self.rpc.get_network_list()
-        self.segmentation_type = ovs_driver_api.VLAN_SEGMENTATION
+        self.segmentation_type = driver_api.VLAN_SEGMENTATION
 
     def create_network(self, network_id):
         self._remember_network(network_id)
@@ -269,7 +269,7 @@ class AristaOVSDriver(ovs_driver_api.OVSDriverAPI):
         del self._provisioned_nets[network_id]
 
     def _vlans_used(self):
-        return self._segm_type_used(ovs_driver_api.VLAN_SEGMENTATION)
+        return self._segm_type_used(driver_api.VLAN_SEGMENTATION)
 
     def _segm_type_used(self, segm_type):
         return self.segmentation_type == segm_type

@@ -15,64 +15,61 @@
 # limitations under the License.
 
 from quantum.common import exceptions
+from quantum.common.hardware_driver.drivers import dummy
 from quantum.extensions import portbindings
 from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
-from quantum.plugins.openvswitch import ovs_db_v2
-from quantum.plugins.openvswitch.drivers import dummy
 
 
 LOG = logging.getLogger(__name__)
 
-OVS_DRIVER_OPTS = [
-    cfg.StrOpt('ovs_driver',
-               default=('quantum.plugins.openvswitch.drivers.'
-                        'dummy.DummyOVSDriver'),
+HW_DRIVER_OPTS = [
+    cfg.StrOpt('hw_driver',
+               default=('quantum.common.hardware_driver.drivers.'
+                        'dummy.DummyDriver'),
                help=_('OVS driver used as a backend.')),
-    cfg.StrOpt('ovs_driver_segmentation_type',
+    cfg.StrOpt('hw_driver_segmentation_type',
                default='vlan',
                help=_('L2 segmentation type to be used on hardware routers. '
                       'One of vlan or tunnel is supported.'))
 ]
 
 
-cfg.CONF.register_opts(OVS_DRIVER_OPTS, "OVS_DRIVER")
+cfg.CONF.register_opts(HW_DRIVER_OPTS, "HW_DRIVER")
 
 
-class OVSDriverConfigError(exceptions.QuantumException):
+class DriverConfigError(exceptions.QuantumException):
     message = _('%(msg)s')
 
 
-class OVSDriverAdapter(object):
+class DriverAdapter(object):
     """
-    Adapts OVS driver API to OVS plugin incoming arguments.
+    Adapts hardware driver API to a quantum plugin.
+    Plugin adopting given class must support portbindings extension.
     """
 
-    # TODO: Refactor to remove 'if not self.driver_available:' check in the
-    #       beginning of each method (wrapper?).
-    required_options = ['ovs_driver_segmentation_type', 'ovs_driver']
+    required_options = ['hw_driver_segmentation_type', 'hw_driver']
     driver_available = False
 
     def __init__(self):
         for opt in self.required_options:
-            if opt not in cfg.CONF.OVS_DRIVER:
+            if opt not in cfg.CONF.HW_DRIVER:
                 msg = _('Required option %s is not set') % opt
                 LOG.error(msg)
-                raise OVSDriverConfigError(msg=msg)
+                raise DriverConfigError(msg=msg)
 
-        driver_name = cfg.CONF.OVS_DRIVER['ovs_driver']
-        segm_type = cfg.CONF.OVS_DRIVER['ovs_driver_segmentation_type']
+        driver_name = cfg.CONF.HW_DRIVER['hw_driver']
+        segm_type = cfg.CONF.HW_DRIVER['hw_driver_segmentation_type']
 
-        ovs_driver_class = importutils.import_class(driver_name)
+        hw_driver_class = importutils.import_class(driver_name)
 
-        self._driver = ovs_driver_class()
+        self._driver = hw_driver_class()
         self._driver.segmentation_type = segm_type
 
-        OVSDriverAdapter.driver_available = (ovs_driver_class is
-                                             not dummy.DummyOVSDriver)
+        self.driver_available = (hw_driver_class is not dummy.DummyDriver)
 
-    def on_port_create(self, context, port):
+    def on_port_create(self, port, segmentation_id):
         if not self.driver_available:
             return
 
@@ -81,27 +78,25 @@ class OVSDriverAdapter(object):
 
         if host:
             network_id = p['network_id']
-            binding = ovs_db_v2.get_network_binding(None, network_id)
-            segmentation_id = binding.segmentation_id
 
             self._driver.plug_host(network_id, segmentation_id, host)
 
-    def on_port_update(self, context, port, network_id):
+    def on_port_update(self, port, network_id):
         port['port']['network_id'] = network_id
-        self.on_port_create(context, port)
+        self.on_port_create(port)
 
-    def on_network_create(self, context, network):
+    def on_network_create(self, network):
         if not self.driver_available:
             return
 
         self._driver.create_network(network['id'])
 
-    def on_network_update(self, context, network_id, network):
+    def on_network_update(self, network_id, network):
         if not self.driver_available:
             return
         # TODO: analize what has changed and then act appropriately
 
-    def on_network_delete(self, context, network_id):
+    def on_network_delete(self, network_id):
         if not self.driver_available:
             return
 

@@ -27,7 +27,7 @@ import abc
 VLAN_SEGMENTATION = 'vlan'
 
 
-class OVSDriverAPI(object):
+class HardwareDriverAPI(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
