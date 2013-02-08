@@ -230,7 +230,11 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         self._initialize_ovs_driver()
 
     def _initialize_ovs_driver(self):
-        self._ovs_driver = driver_adapter.DriverAdapter()
+        def get_segmentation_id(network_id):
+            binding = ovs_db_v2.get_network_binding(None, network_id)
+            return binding.segmentation_id
+
+        self._ovs_driver = driver_adapter.DriverAdapter(get_segmentation_id)
 
     def setup_rpc(self):
         # RPC support
@@ -514,10 +518,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         return port
 
     def create_port(self, context, port):
-        binding = ovs_db_v2.get_network_binding(None, port['network_id'])
-        segmentation_id = binding.segmentation_id
-
-        self._ovs_driver.on_port_create(port, segmentation_id)
+        self._ovs_driver.on_port_create(port)
 
         port = super(OVSQuantumPluginV2, self).create_port(context, port)
         return self._extend_port_dict_binding(context, port)

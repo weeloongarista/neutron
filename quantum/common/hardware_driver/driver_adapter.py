@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
+
 from quantum.common import exceptions
 from quantum.common.hardware_driver.drivers import dummy
 from quantum.extensions import portbindings
@@ -39,6 +41,10 @@ HW_DRIVER_OPTS = [
 cfg.CONF.register_opts(HW_DRIVER_OPTS, "HW_DRIVER")
 
 
+class InvalidDelegateError(exceptions.QuantumException):
+    message = _('%(msg)s')
+
+
 class DriverConfigError(exceptions.QuantumException):
     message = _('%(msg)s')
 
@@ -47,17 +53,21 @@ class DriverAdapter(object):
     """
     Adapts hardware driver API to a quantum plugin.
     Plugin adopting given class must support portbindings extension.
+    Plugin MUST provide delegate which returns segmentation ID for a given
+    network ID:
+        lambda network_id: segmentation_id_for(network_id)
     """
 
     required_options = ['hw_driver_segmentation_type', 'hw_driver']
     driver_available = False
 
-    def __init__(self):
-        for opt in self.required_options:
-            if opt not in cfg.CONF.HW_DRIVER:
-                msg = _('Required option %s is not set') % opt
-                LOG.error(msg)
-                raise DriverConfigError(msg=msg)
+    def __init__(self, get_segmentation_id_delegate):
+        """
+        :param get_segmentation_id_delegate: function returning segmentation ID
+        for a given network ID. Must have one argument.
+        """
+        self._verify_get_segmentation_id(get_segmentation_id_delegate)
+        self._verify_configuration()
 
         driver_name = cfg.CONF.HW_DRIVER['hw_driver']
         segm_type = cfg.CONF.HW_DRIVER['hw_driver_segmentation_type']
@@ -66,10 +76,11 @@ class DriverAdapter(object):
 
         self._driver = hw_driver_class()
         self._driver.segmentation_type = segm_type
+        self._get_segmentation_id = get_segmentation_id_delegate
 
         self.driver_available = (hw_driver_class is not dummy.DummyDriver)
 
-    def on_port_create(self, port, segmentation_id):
+    def on_port_create(self, port):
         if not self.driver_available:
             return
 
@@ -78,6 +89,7 @@ class DriverAdapter(object):
 
         if host:
             network_id = p['network_id']
+            segmentation_id = self._get_segmentation_id(network_id)
 
             self._driver.plug_host(network_id, segmentation_id, host)
 
@@ -101,3 +113,16 @@ class DriverAdapter(object):
             return
 
         self._driver.delete_network(network_id)
+
+    def _verify_get_segmentation_id(self, get_segmentation_id_delegate):
+        if (not get_segmentation_id_delegate or
+            not inspect.isroutine(get_segmentation_id_delegate)):
+            msg = _('Invalid get_segmentation_id routine passed.')
+            raise InvalidDelegateError(msg=msg)
+
+    def _verify_configuration(self):
+        for opt in self.required_options:
+            if opt not in cfg.CONF.HW_DRIVER:
+                msg = _('Required option %s is not set') % opt
+                LOG.error(msg)
+                raise DriverConfigError(msg=msg)
