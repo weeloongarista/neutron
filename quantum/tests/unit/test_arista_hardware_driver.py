@@ -18,8 +18,8 @@ import mock
 import unittest2 as unittest
 
 from quantum.openstack.common import cfg
-from quantum.plugins.openvswitch import ovs_driver_api
-from quantum.plugins.openvswitch.drivers import arista
+from quantum.common.hardware_driver import driver_api
+from quantum.common.hardware_driver.drivers import arista
 
 
 def clear_config():
@@ -139,7 +139,7 @@ class NegativeRPCWrapperTestCase(unittest.TestCase):
 class AristaOVSDriverTestCase(unittest.TestCase):
     def setUp(self):
         self.fake_rpc = mock.MagicMock()
-        self.drv = arista.AristaOVSDriver(self.fake_rpc)
+        self.drv = arista.AristaDriver(self.fake_rpc)
 
     def tearDown(self):
         pass
@@ -210,7 +210,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         self.fake_rpc.plug_host_into_vlan(network_id, vlan_id, host_id)
 
     def test_rpc_request_not_sent_for_existing_vlan_after_start(self):
-        seg_type = ovs_driver_api.VLAN_SEGMENTATION
+        seg_type = driver_api.VLAN_SEGMENTATION
         net1_id = 'net1-id'
         net2_id = 'net2-id'
         net2_vlan = 1002
@@ -231,7 +231,7 @@ class AristaOVSDriverTestCase(unittest.TestCase):
         fake_rpc = mock.MagicMock()
         fake_rpc.get_network_list.return_value = provisioned_networks
 
-        drv = arista.AristaOVSDriver(fake_rpc)
+        drv = arista.AristaDriver(fake_rpc)
         drv.create_network(network_id)
 
         # wrapper.plug_host_into_vlan() should not be called in this case
