@@ -18,7 +18,8 @@ import mock
 import unittest2 as unittest
 
 from quantum.openstack.common import cfg
-from quantum.plugins.openvswitch.drivers import arista
+from quantum.common.hardware_driver import driver_api
+from quantum.common.hardware_driver.drivers import arista
 
 
 def clear_config():

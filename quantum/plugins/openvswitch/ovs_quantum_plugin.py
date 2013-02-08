@@ -27,6 +27,7 @@ from quantum.common import constants as q_const
 from quantum.common import exceptions as q_exc
 from quantum.common import rpc as q_rpc
 from quantum.common import topics
+from quantum.common.hardware_driver import driver_adapter
 from quantum.db import db_base_plugin_v2
 from quantum.db import dhcp_rpc_base
 from quantum.db import l3_db
@@ -39,7 +40,6 @@ from quantum.openstack.common import cfg
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import rpc
 from quantum.openstack.common.rpc import proxy
-from quantum.plugins.openvswitch import ovs_driver_adapter
 from quantum.plugins.openvswitch.common import config
 from quantum.plugins.openvswitch.common import constants
 from quantum.plugins.openvswitch import ovs_db_v2
@@ -230,7 +230,11 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         self.setup_rpc()
 
     def _initialize_ovs_driver(self):
-        self._ovs_driver = ovs_driver_adapter.OVSDriverAdapter()
+        def get_segmentation_id(network_id):
+            binding = ovs_db_v2.get_network_binding(None, network_id)
+            return binding.segmentation_id
+
+        self._ovs_driver = driver_adapter.DriverAdapter(get_segmentation_id)
 
     def setup_rpc(self):
         # RPC support
@@ -443,7 +447,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self._extend_network_dict_l3(context, net)
             # note - exception will rollback entire transaction
 
-        self._ovs_driver.on_network_create(context, net)
+        self._ovs_driver.on_network_create(net)
 
         LOG.debug(_("Created network: %s"), net['id'])
         return net
@@ -459,7 +463,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
             self._extend_network_dict_provider(context, net)
             self._extend_network_dict_l3(context, net)
 
-        self._ovs_driver.on_network_update(context, id, network)
+        self._ovs_driver.on_network_update(id, network)
 
         return net
 
@@ -478,7 +482,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
                                        self.network_vlan_ranges)
             # the network_binding record is deleted via cascade from
             # the network record, so explicit removal is not necessary
-        self._ovs_driver.on_network_delete(context, id)
+        self._ovs_driver.on_network_delete(id)
         self.notifier.network_delete(context, id)
 
     def get_network(self, context, id, fields=None):
@@ -514,7 +518,8 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
         return port
 
     def create_port(self, context, port):
-        self._ovs_driver.on_port_create(context, port)
+        self._ovs_driver.on_port_create(port)
+
         port = super(OVSQuantumPluginV2, self).create_port(context, port)
         return self._extend_port_dict_binding(context, port)
 
