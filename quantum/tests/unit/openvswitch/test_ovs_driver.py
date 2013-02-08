@@ -18,11 +18,11 @@ import mock
 import unittest2 as unittest
 
 from quantum.openstack.common import cfg
-from quantum.plugins.openvswitch import ovs_driver_adapter
-from quantum.plugins.openvswitch import ovs_driver_api
+from quantum.common.hardware_driver import driver_adapter
+from quantum.common.hardware_driver import driver_api
 
 
-class FakeOVSDriver(ovs_driver_api.OVSDriverAPI):
+class FakeOVSDriver(driver_api.HardwareDriverAPI):
     def create_network(self, network_id):
         pass
 
@@ -42,19 +42,22 @@ class OVSDriverAdapterTestCase(unittest.TestCase):
     """
 
     def _config_multiple_drivers(self):
-        dummy_drv_str = ('quantum.plugins.openvswitch.'
-                         'drivers.dummy.DummyOVSDriver')
+        dummy_drv_str = ('quantum.common.hardware_driver.'
+                         'drivers.dummy.DummyDriver')
         fake_drv_str = ('quantum.tests.unit.openvswitch.'
                         'test_ovs_driver.FakeOVSDriver')
         drivers_cfg = [dummy_drv_str, fake_drv_str]
 
-        cfg.CONF.set_override('ovs_drivers', drivers_cfg, 'OVS_DRIVER')
+        cfg.CONF.set_override('hw_drivers', drivers_cfg, 'HW_DRIVER')
+
+    @classmethod
+    def _valid_get_vlan_id(net_id):
+        return '1234'
 
     def test_calls_all_drivers(self):
         self._config_multiple_drivers()
         
-        drv = ovs_driver_adapter.OVSDriverAdapter()
-        context = None
+        drv = driver_adapter.DriverAdapter(self._valid_get_vlan_id)
         net_id = '123'
         network = {'id': net_id}
 
@@ -63,16 +66,17 @@ class OVSDriverAdapterTestCase(unittest.TestCase):
 
         drv._drivers = [fake_dummy_drv, fake_ovs_drv]
 
-        drv.on_network_create(context, network)
+        drv.on_network_create(network)
         
         fake_dummy_drv.create_network.assert_called_once_with(net_id)
         fake_ovs_drv.create_network.assert_called_once_with(net_id)
 
     def test_error_is_raised_on_invalid_configuration(self):
         # Config values should not be None
-        cfg.CONF.set_override('ovs_drivers', None, 'OVS_DRIVER')
-        cfg.CONF.set_override('ovs_driver_segmentation_type', None,
-                              'OVS_DRIVER')
+        cfg.CONF.set_override('hw_drivers', None, 'HW_DRIVER')
+        cfg.CONF.set_override('hw_driver_segmentation_type', None,
+                              'HW_DRIVER')
 
-        self.assertRaises(ovs_driver_adapter.OVSDriverConfigError,
-                          ovs_driver_adapter.OVSDriverAdapter)
+        self.assertRaises(driver_adapter.DriverConfigError,
+                          driver_adapter.DriverAdapter,
+                          self._valid_get_vlan_id)
