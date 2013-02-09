@@ -536,8 +536,7 @@ class OVSQuantumPluginV2(db_base_plugin_v2.QuantumDbPluginV2,
 
     def update_port(self, context, id, port):
         original_port = super(OVSQuantumPluginV2, self).get_port(context, id)
-        self._ovs_driver.on_port_update(context, port,
-                                        original_port['network_id'])
+        self._ovs_driver.on_port_update(port, original_port['network_id'])
 
         port = super(OVSQuantumPluginV2, self).update_port(context, id, port)
         if original_port['admin_state_up'] != port['admin_state_up']:
