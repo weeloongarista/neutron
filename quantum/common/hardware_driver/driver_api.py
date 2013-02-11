@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Generic API within OVS driver. Allows for insertion of different backends
-to be used for L2 network connectivity.
+"""Generic API for hardware backend driver.
+
+Allows for insertion of different backends to be used for L2 network
+connectivity. May be used for any quantum plugin which supports portbindings
+extension.
 
 https://blueprints.launchpad.net/quantum/+spec/ovsplugin-hardware-devices
 """
@@ -32,9 +34,7 @@ class HardwareDriverAPI(object):
 
     @abc.abstractmethod
     def create_network(self, network_id):
-        """
-        Configures isolated L2 segment for a given tenant using :param
-        segmentation_type:.
+        """Configures isolated L2 segment for a given network.
 
         :param network_id: globally-unique quantum network identifier
         :param segmentation_type: either VLAN or tunnel
@@ -43,8 +43,8 @@ class HardwareDriverAPI(object):
 
     @abc.abstractmethod
     def plug_host(self, network_id, segmentation_id, host_id):
-        """
-        Connects L2 network with a compute node
+        """Adds host into the network.
+
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel ID
         :param host_id: hypervisor (compute node)
@@ -53,8 +53,8 @@ class HardwareDriverAPI(object):
 
     @abc.abstractmethod
     def unplug_host(self, network_id, segmentation_id, host_id):
-        """
-        Removes connection between L2 network segment and a compute node
+        """Removes connection between L2 network segment and a compute node.
+
         :param network_id: globally-unique quantum network identifier
         :param segmentation_id: VLAN or tunnel ID
         :param host_id: hypervisor (compute node)
@@ -63,9 +63,8 @@ class HardwareDriverAPI(object):
 
     @abc.abstractmethod
     def delete_network(self, network_id):
-        """
-        Deletes L2 network segment (vlan or tunnel) configuration from the
-        hardware
+        """Deletes L2 network segment configuration from the hardware.
+
         :param context: quantum API request context
         :param network_id: globally-unique quantum network identifier
         """

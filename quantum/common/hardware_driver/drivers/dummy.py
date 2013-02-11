@@ -18,9 +18,8 @@ from quantum.common.hardware_driver import driver_api
 
 
 class DummyDriver(driver_api.HardwareDriverAPI):
-    """
-    Empty implementation of HardwareDriverAPI.
-    """
+    """Empty implementation of HardwareDriverAPI."""
+
     def create_network(self, network_id):
         pass
 

@@ -25,9 +25,9 @@ import sys
 from quantum.api.v2 import attributes
 from quantum.common import constants as q_const
 from quantum.common import exceptions as q_exc
+from quantum.common.hardware_driver import driver_adapter
 from quantum.common import rpc as q_rpc
 from quantum.common import topics
-from quantum.common.hardware_driver import driver_adapter
 from quantum.db import db_base_plugin_v2
 from quantum.db import dhcp_rpc_base
 from quantum.db import l3_db
