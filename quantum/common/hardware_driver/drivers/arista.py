@@ -299,7 +299,7 @@ class AristaDriver(driver_api.HardwareDriverAPI):
 
         self.net_storage = net_storage
         self.net_storage.initialize()
-        self.segmentation_type = ovs_driver_api.VLAN_SEGMENTATION
+        self.segmentation_type = driver_api.VLAN_SEGMENTATION
 
     def create_network(self, network_id):
         self.net_storage.remember_network(network_id)

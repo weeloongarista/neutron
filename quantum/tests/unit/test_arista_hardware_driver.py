@@ -18,7 +18,6 @@ import mock
 import unittest2 as unittest
 
 from quantum.openstack.common import cfg
-from quantum.common.hardware_driver import driver_api
 from quantum.common.hardware_driver.drivers import arista
 
 
@@ -258,7 +257,7 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
         self.fake_rpc = mock.MagicMock()
         self.net_storage_mock = mock.MagicMock()
 
-        self.drv = arista.AristaOVSDriver(self.fake_rpc, self.net_storage_mock)
+        self.drv = arista.AristaDriver(self.fake_rpc, self.net_storage_mock)
 
         self.net_storage_mock.initialize.assert_called_once_with()
 
@@ -326,7 +325,7 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
         self.fake_rpc = mock.MagicMock()
         self.net_storage = arista.ProvisionedNetsStorage()
         self.net_storage.initialize()
-        self.drv = arista.AristaOVSDriver(self.fake_rpc, self.net_storage)
+        self.drv = arista.AristaDriver(self.fake_rpc, self.net_storage)
 
     def tearDown(self):
         self.net_storage.tear_down()
