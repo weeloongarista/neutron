@@ -50,8 +50,8 @@ class DriverConfigError(exceptions.QuantumException):
 
 
 class DriverAdapter(object):
-    """
-    Adapts hardware driver API to a quantum plugin.
+    """Adapts hardware driver API to a quantum plugin.
+
     Plugin adopting given class must support portbindings extension.
     Plugin MUST provide delegate which returns segmentation ID for a given
     network ID:
@@ -62,7 +62,8 @@ class DriverAdapter(object):
     drivers_available = False
 
     def __init__(self, get_segmentation_id_delegate):
-        """
+        """Contsructs adapter object.
+
         :param get_segmentation_id_delegate: function returning segmentation ID
         for a given network ID. Must have one argument.
         """
