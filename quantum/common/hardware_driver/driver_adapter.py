@@ -72,6 +72,8 @@ class DriverAdapter(object):
         self._verify_get_segmentation_id(get_segmentation_id_delegate)
         self._verify_configuration()
 
+        self._get_segmentation_id = get_segmentation_id_delegate
+
         self._drivers = []
         segm_type = config['hw_driver_segmentation_type']
 
@@ -82,7 +84,6 @@ class DriverAdapter(object):
             if hw_driver_class is not dummy.DummyDriver:
                 hw_driver = hw_driver_class()
                 hw_driver.segmentation_type = segm_type
-                hw_driver._get_segmentation_id = get_segmentation_id_delegate
                 self._drivers.append(hw_driver)
 
         if self._drivers:
