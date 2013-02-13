@@ -42,6 +42,7 @@ EagerResources = [
 ]
 
 config_path = 'etc/quantum/'
+hardware_driver_path = 'etc/quantum/hardware_driver'
 init_path = 'etc/init.d'
 rootwrap_path = 'etc/quantum/rootwrap.d'
 ovs_plugin_config_path = 'etc/quantum/plugins/openvswitch'
@@ -77,6 +78,9 @@ else:
              'etc/l3_agent.ini',
              'etc/metadata_agent.ini',
              'etc/arista_driver.ini']),
+        (hardware_driver_path,
+            ['etc/quantum/hardware_driver/hardware_driver.ini',
+             'etc/quantum/hardware_driver/arista_driver.ini']),
         (rootwrap_path,
             ['etc/quantum/rootwrap.d/dhcp.filters',
              'etc/quantum/rootwrap.d/iptables-firewall.filters',
