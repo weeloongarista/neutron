@@ -19,6 +19,10 @@ import unittest2 as unittest
 
 from quantum.openstack.common import cfg
 from quantum.common.hardware_driver.drivers import arista
+import thread
+from quantum.common import hardware_driver
+from quantum.common.hardware_driver import driver_api
+import copy
 
 
 def clear_config():
@@ -134,22 +138,50 @@ class AristaProvisionedVlansStorageTestCase(unittest.TestCase):
     def test_num_networks_is_valid(self):
         network_id = '123'
         vlan_id = 123
-        host1_id = 'host1'
-        host2_id = 'host2'
-        host3_id = 'host3'
+        hosts_to_remember = ['host1', 'host2', 'host3']
+        hosts_to_forget = ['host2', 'host1']
 
         self.drv.remember_network(network_id)
-        self.drv.remember_host(network_id, vlan_id, host1_id)
-        self.drv.remember_host(network_id, vlan_id, host2_id)
-        self.drv.remember_host(network_id, vlan_id, host3_id)
-        self.drv.forget_host(network_id, host2_id)
+        for host in hosts_to_remember:
+            self.drv.remember_host(network_id, vlan_id, host)
+        for host in hosts_to_forget:
+            self.drv.forget_host(network_id, host)
 
-        num_nets = len(self.drv.get_all_vlans_for_net(network_id))
-        expected = 2
+        num_hosts = self.drv.num_hosts_for_net(network_id)
+        expected = len(hosts_to_remember) - len(hosts_to_forget)
 
-        self.assertEqual(expected, num_nets,
+        self.assertEqual(expected, num_hosts,
                          'There should be %(expected)d records, '
-                         'got %(num_nets)d records' % locals())
+                         'got %(num_hosts)d records' % locals())
+
+    def test_get_network_list_returns_veos_compatible_data(self):
+        segm_type = driver_api.VLAN_SEGMENTATION
+        network_id = '123'
+        network2_id = '1234'
+        vlan_id = 123
+        vlan2_id = 1234
+        hosts_net1 = ['host1', 'host2', 'host3']
+        hosts_net2 = ['host1']
+        expected_veos_net_list = {network_id: {'networkId': network_id,
+                                               'hostId': hosts_net1,
+                                               'segmentationId': vlan_id,
+                                               'segmentationType': segm_type},
+                                  network2_id: {'networkId': network2_id,
+                                                'hostId': hosts_net2,
+                                                'segmentationId': vlan2_id,
+                                                'segmentationType': segm_type}}
+
+        self.drv.remember_network(network_id)
+        for host in hosts_net1:
+            self.drv.remember_host(network_id, vlan_id, host)
+        for host in hosts_net2:
+            self.drv.remember_host(network2_id, vlan2_id, host)
+
+        net_list = self.drv.get_network_list()
+
+        self.assertTrue(net_list == expected_veos_net_list,
+                        ('%(net_list)s != %(expected_veos_net_list)s' %
+                         locals()))
 
 
 class AristaRPCWrapperInvalidConfigTestCase(unittest.TestCase):
@@ -322,13 +354,109 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
 
 class KeepAliveServicTestCase(unittest.TestCase):
     def setUp(self):
-        pass
+        self.service = arista.SyncService()
+        self.service._rpc = mock.Mock(spec=arista.AristaRPCWrapper)
+        self.service._db = mock.Mock(spec=arista.ProvisionedNetsStorage)
 
     def tearDown(self):
         pass
 
     def test_remote_server_in_sync_on_empty_db(self):
-        self.assertTrue(True)
+        service = self.service
+
+        service._rpc.get_network_list.return_value = {}
+        service._db.get_network_list.return_value = {}
+
+        in_sync = service.is_synchronized()
+
+        self.assertTrue(in_sync, ('Quantum DB and vEOS should be in sync '
+                                  'for empty DBs'))
+
+    def test_not_in_sync_on_empty_veos_but_not_empty_quantum(self):
+        service = self.service
+        net_id = ['123']
+        hosts = ['host1', 'host2']
+        vlan_id = 123
+        db_data = self._veos_data_builder(net_id, hosts, vlan_id)
+
+        # single host is missing on vEOS
+        veos_data = self._veos_data_builder(net_id, hosts[:1], vlan_id)
+
+        service._rpc.get_network_list.return_value = veos_data
+        service._db.get_network_list.return_value = db_data
+
+        in_sync = service.is_synchronized()
+
+        self.assertFalse(in_sync, ('Quantum DB and vEOS are NOT be in sync '
+                                   'when there is nothing on vEOS and some '
+                                   'data in Quantum'))
+
+    def test_synchronize_sends_missing_hosts_to_veos(self):
+        service = self.service
+        net_id = ['123']
+        db_hosts = ['host1', 'host2', 'host3']
+        veos_hosts = db_hosts[:1]
+        missing_hosts = set(db_hosts) - set(veos_hosts)
+        vlan_id = 123
+
+        db_data = self._veos_data_builder(net_id, db_hosts, vlan_id)
+        veos_data = self._veos_data_builder(net_id, veos_hosts, vlan_id)
+
+        service._db.get_network_list.return_value = db_data
+        service._rpc.get_network_list.return_value = veos_data
+
+        service.synchronize()
+
+        expected_calls = []
+
+        for host in missing_hosts:
+            expected_calls.append(mock.call(net_id[0], vlan_id, host))
+
+        provisioned_hosts = (service._rpc.plug_host_into_vlan.call_args_list ==
+                             expected_calls)
+
+        self.assertTrue(provisioned_hosts)
+
+    def test_synchronize_sends_missing_networks_to_veos(self):
+        service = self.service
+
+        db_net_ids = ['123', '234', '345']
+        veos_net_ids = db_net_ids[:1]
+        missing_nets = set(db_net_ids) - set(veos_net_ids)
+
+        db_hosts = ['host1', 'host2', 'host3']
+        veos_hosts = copy.deepcopy(db_hosts)
+        vlan_id = 123
+
+        db_data = self._veos_data_builder(db_net_ids, db_hosts, vlan_id)
+        veos_data = self._veos_data_builder(veos_net_ids, veos_hosts, vlan_id)
+
+        service._db.get_network_list.return_value = db_data
+        service._rpc.get_network_list.return_value = veos_data
+
+        service.synchronize()
+
+        expected_calls = []
+
+        for net in missing_nets:
+            for host in db_hosts:
+                expected_calls.append(mock.call(net, vlan_id, host))
+
+        provisioned_hosts = (service._rpc.plug_host_into_vlan.call_args_list ==
+                             expected_calls)
+
+        self.assertTrue(provisioned_hosts)
+
+    def _veos_data_builder(self, nets, hosts, segm_id):
+        data = {}
+
+        for net in nets:
+            data[net] = {'networkId': net,
+                         'hostId': hosts,
+                         'segmentationId': segm_id,
+                         'segmentationType': driver_api.VLAN_SEGMENTATION}
+
+        return data
 
 
 class RealNetStorageOVSDriverTestCase(unittest.TestCase):

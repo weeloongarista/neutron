@@ -23,7 +23,6 @@ from quantum.common import exceptions
 from quantum.openstack.common import cfg
 from quantum.openstack.common import log as logging
 from quantum.common.hardware_driver import driver_api
-import eventlet
 
 
 LOG = logging.getLogger(__name__)
@@ -79,6 +78,14 @@ class ProvisionedNetsStorage(object):
             return "<AristaProvisionedNets(%s,%d,%s)>" % (self.network_id,
                                                           self.segmentation_id,
                                                           self.host_id)
+
+        def veos_representation(self):
+            segm_type = cfg.CONF.ARISTA_DRIVER['arista_segmentation_type']
+
+            return {'hostId': self.host_id,
+                    'networkId': self.network_id,
+                    'segmentationId': self.segmentation_id,
+                    'segmentationType': segm_type}
 
     def initialize(self):
         db.configure_db()
@@ -151,7 +158,13 @@ class ProvisionedNetsStorage(object):
         with session.begin():
             return session.query(self.AristaProvisionedNets).count()
 
-    def get_all_vlans_for_net(self, network_id):
+    def num_hosts_for_net(self, network_id):
+        session = db.get_session()
+        with session.begin():
+            return (session.query(self.AristaProvisionedNets).
+                    filter_by(network_id=network_id).count())
+
+    def get_all_hosts_for_net(self, network_id):
         session = db.get_session()
         with session.begin():
             return (session.query(self.AristaProvisionedNets).
@@ -162,6 +175,21 @@ class ProvisionedNetsStorage(object):
             self.remember_host(net['networkId'],
                                net['segmentationId'],
                                net['hostId'])
+
+    def get_network_list(self):
+        """Returns all networks in vEOS-compatible format.
+
+        See AristaRPCWrapper.get_network_list() for return value format."""
+        session = db.get_session()
+        with session.begin():
+            all_nets = session.query(self.AristaProvisionedNets).all()
+            res = {}
+            for net in all_nets:
+                all_hosts = self.get_all_hosts_for_net(net.network_id)
+                hosts = [host.host_id for host in all_hosts]
+                res[net.network_id] = net.veos_representation()
+                res[net.network_id]['hostId'] = hosts
+            return res
 
 
 class AristaRPCWrapper(object):
@@ -288,11 +316,52 @@ class AristaRPCWrapper(object):
                 raise AristaConfigError(msg=msg)
 
 
-class KeepAliveService(object):
+# TODO: add support for non-vlan mode (use checks before calling
+#       plug_host_Into_vlan())
+class SyncService(object):
     def __init__(self):
-        self._net_storage = ProvisionedNetsStorage()
+        self._db = ProvisionedNetsStorage()
         self._rpc = AristaRPCWrapper()
-        self._timeout = 10
+
+    def is_synchronized(self):
+        """Checks whether quantum DB is in sync with vEOS DB"""
+        veos_net_list = self._rpc.get_network_list()
+        db_net_list = self._db.get_network_list()
+
+        if veos_net_list != db_net_list:
+            return False
+
+        return True
+
+    def synchronize(self):
+        """Sends data to vEOS which differs from quantum DB."""
+        veos_net_list = self._rpc.get_network_list()
+        db_net_list = self._db.get_network_list()
+
+        for net_id in db_net_list:
+            db_net = db_net_list[net_id]
+
+            # if network does not exist on vEOS
+            if net_id not in veos_net_list:
+                self._send_network_configuration(db_net_list, net_id)
+            # if network exists, but hosts do not match
+            elif db_net != veos_net_list[net_id]:
+                veos_net = veos_net_list[net_id]
+                if db_net['hostId'] != veos_net['hostId']:
+                    self._plug_missing_hosts(net_id, db_net, veos_net)
+
+    def _send_network_configuration(self, db_net_list, net_id):
+        for host in db_net_list[net_id]['hostId']:
+            segm_id = db_net_list[net_id]['segmentationId']
+            self._rpc.plug_host_into_vlan(net_id, segm_id, host)
+
+    def _plug_missing_hosts(self, net_id, db_net, veos_net):
+        db_hosts = set(db_net['hostId'])
+        veos_hosts = set(veos_net['hostId'])
+        missing_hosts = db_hosts - veos_hosts
+        vlan_id = db_net['segmentationId']
+        for host in missing_hosts:
+            self._rpc.plug_host_into_vlan(net_id, vlan_id, host)
 
 
 class AristaDriver(driver_api.HardwareDriverAPI):
