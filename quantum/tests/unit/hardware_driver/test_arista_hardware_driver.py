@@ -14,15 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
+
 import mock
 import unittest2 as unittest
 
 from quantum.openstack.common import cfg
 from quantum.common.hardware_driver.drivers import arista
-import thread
-from quantum.common import hardware_driver
 from quantum.common.hardware_driver import driver_api
-import copy
 
 
 def clear_config():
@@ -286,8 +285,10 @@ class NegativeRPCWrapperTestCase(unittest.TestCase):
 
 class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
     def setUp(self):
-        self.fake_rpc = mock.MagicMock()
-        self.net_storage_mock = mock.MagicMock()
+        net_storage_mock = mock.MagicMock(spec=arista.ProvisionedNetsStorage)
+
+        self.fake_rpc = mock.MagicMock(spec=arista.AristaRPCWrapper)
+        self.net_storage_mock = net_storage_mock
 
         self.drv = arista.AristaDriver(self.fake_rpc, self.net_storage_mock)
 
@@ -354,9 +355,10 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
 
 class KeepAliveServicTestCase(unittest.TestCase):
     def setUp(self):
-        self.service = arista.SyncService()
-        self.service._rpc = mock.Mock(spec=arista.AristaRPCWrapper)
-        self.service._db = mock.Mock(spec=arista.ProvisionedNetsStorage)
+        self.rpc = mock.Mock(spec=arista.AristaRPCWrapper)
+        self.db = mock.Mock(spec=arista.ProvisionedNetsStorage)
+
+        self.service = arista.SyncService(self.db, self.rpc)
 
     def tearDown(self):
         pass
@@ -364,8 +366,8 @@ class KeepAliveServicTestCase(unittest.TestCase):
     def test_remote_server_in_sync_on_empty_db(self):
         service = self.service
 
-        service._rpc.get_network_list.return_value = {}
-        service._db.get_network_list.return_value = {}
+        self.rpc.get_network_list.return_value = {}
+        self.db.get_network_list.return_value = {}
 
         in_sync = service.is_synchronized()
 
@@ -377,13 +379,13 @@ class KeepAliveServicTestCase(unittest.TestCase):
         net_id = ['123']
         hosts = ['host1', 'host2']
         vlan_id = 123
-        db_data = self._veos_data_builder(net_id, hosts, vlan_id)
+        db_data = self._veos_data_factory(net_id, hosts, vlan_id)
 
         # single host is missing on vEOS
-        veos_data = self._veos_data_builder(net_id, hosts[:1], vlan_id)
+        veos_data = self._veos_data_factory(net_id, hosts[:1], vlan_id)
 
-        service._rpc.get_network_list.return_value = veos_data
-        service._db.get_network_list.return_value = db_data
+        self.rpc.get_network_list.return_value = veos_data
+        self.db.get_network_list.return_value = db_data
 
         in_sync = service.is_synchronized()
 
@@ -399,11 +401,14 @@ class KeepAliveServicTestCase(unittest.TestCase):
         missing_hosts = set(db_hosts) - set(veos_hosts)
         vlan_id = 123
 
-        db_data = self._veos_data_builder(net_id, db_hosts, vlan_id)
-        veos_data = self._veos_data_builder(net_id, veos_hosts, vlan_id)
+        db_data = self._veos_data_factory(net_id, db_hosts, vlan_id)
+        veos_data = self._veos_data_factory(net_id, veos_hosts, vlan_id)
 
-        service._db.get_network_list.return_value = db_data
-        service._rpc.get_network_list.return_value = veos_data
+        print db_data
+        print veos_data
+
+        self.db.get_network_list.return_value = db_data
+        self.rpc.get_network_list.return_value = veos_data
 
         service.synchronize()
 
@@ -412,7 +417,7 @@ class KeepAliveServicTestCase(unittest.TestCase):
         for host in missing_hosts:
             expected_calls.append(mock.call(net_id[0], vlan_id, host))
 
-        provisioned_hosts = (service._rpc.plug_host_into_vlan.call_args_list ==
+        provisioned_hosts = (self.rpc.plug_host_into_vlan.call_args_list ==
                              expected_calls)
 
         self.assertTrue(provisioned_hosts)
@@ -428,11 +433,11 @@ class KeepAliveServicTestCase(unittest.TestCase):
         veos_hosts = copy.deepcopy(db_hosts)
         vlan_id = 123
 
-        db_data = self._veos_data_builder(db_net_ids, db_hosts, vlan_id)
-        veos_data = self._veos_data_builder(veos_net_ids, veos_hosts, vlan_id)
+        db_data = self._veos_data_factory(db_net_ids, db_hosts, vlan_id)
+        veos_data = self._veos_data_factory(veos_net_ids, veos_hosts, vlan_id)
 
-        service._db.get_network_list.return_value = db_data
-        service._rpc.get_network_list.return_value = veos_data
+        self.db.get_network_list.return_value = db_data
+        self.rpc.get_network_list.return_value = veos_data
 
         service.synchronize()
 
@@ -442,12 +447,12 @@ class KeepAliveServicTestCase(unittest.TestCase):
             for host in db_hosts:
                 expected_calls.append(mock.call(net, vlan_id, host))
 
-        provisioned_hosts = (service._rpc.plug_host_into_vlan.call_args_list ==
+        provisioned_hosts = (self.rpc.plug_host_into_vlan.call_args_list ==
                              expected_calls)
 
         self.assertTrue(provisioned_hosts)
 
-    def _veos_data_builder(self, nets, hosts, segm_id):
+    def _veos_data_factory(self, nets, hosts, segm_id):
         data = {}
 
         for net in nets:

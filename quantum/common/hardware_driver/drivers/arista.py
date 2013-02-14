@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+
 import jsonrpclib
 import sqlalchemy
 
@@ -319,9 +321,9 @@ class AristaRPCWrapper(object):
 # TODO: add support for non-vlan mode (use checks before calling
 #       plug_host_Into_vlan())
 class SyncService(object):
-    def __init__(self):
-        self._db = ProvisionedNetsStorage()
-        self._rpc = AristaRPCWrapper()
+    def __init__(self, net_storage, rpc_wrapper):
+        self._db = net_storage
+        self._rpc = rpc_wrapper
 
     def is_synchronized(self):
         """Checks whether quantum DB is in sync with vEOS DB"""
@@ -384,39 +386,57 @@ class AristaDriver(driver_api.HardwareDriverAPI):
         config = cfg.CONF.ARISTA_DRIVER
         self.segmentation_type = config['arista_segmentation_type']
 
+        self.veos = SyncService(self.net_storage, self.rpc)
+        self.sync_timeout = 10
+        self.veos_sync_lock = threading.Lock()
+
+        self._synchronization_thread()
+
     def create_network(self, network_id):
-        self.net_storage.remember_network(network_id)
+        with self.veos_sync_lock:
+            self.net_storage.remember_network(network_id)
 
     def delete_network(self, network_id):
-        if self.net_storage.is_network_provisioned(network_id):
-            self.rpc.delete_network(network_id)
-            self.net_storage.forget_network(network_id)
+        with self.veos_sync_lock:
+            if self.net_storage.is_network_provisioned(network_id):
+                self.rpc.delete_network(network_id)
+                self.net_storage.forget_network(network_id)
 
     def unplug_host(self, network_id, segmentation_id, host_id):
-        storage = self.net_storage
-        was_provisioned = storage.is_network_provisioned(network_id,
-                                                         segmentation_id,
-                                                         host_id)
-
-        if was_provisioned:
-            if self._vlans_used():
-                self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
-                                               host_id)
-            storage.forget_host(network_id, host_id)
-
-    def plug_host(self, network_id, segmentation_id, host_id):
-        storage = self.net_storage
-        already_provisioned = storage.is_network_provisioned(network_id,
+        with self.veos_sync_lock:
+            storage = self.net_storage
+            was_provisioned = storage.is_network_provisioned(network_id,
                                                              segmentation_id,
                                                              host_id)
 
-        if not already_provisioned:
-            if self._vlans_used():
-                self.rpc.plug_host_into_vlan(network_id,
-                                             segmentation_id,
-                                             host_id)
+            if was_provisioned:
+                if self._vlans_used():
+                    self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
+                                                   host_id)
+                storage.forget_host(network_id, host_id)
 
-        storage.remember_host(network_id, segmentation_id, host_id)
+    def plug_host(self, network_id, segmentation_id, host_id):
+        with self.veos_sync_lock:
+            s = self.net_storage
+            already_provisioned = s.is_network_provisioned(network_id,
+                                                           segmentation_id,
+                                                           host_id)
+
+            if not already_provisioned:
+                if self._vlans_used():
+                    self.rpc.plug_host_into_vlan(network_id,
+                                                 segmentation_id,
+                                                 host_id)
+
+            s.remember_host(network_id, segmentation_id, host_id)
+
+    def _synchronization_thread(self):
+        with self.veos_sync_lock:
+            if not self.veos.is_synchronized():
+                self.veos.synchronize()
+
+        t = threading.Timer(self.sync_timeout, self._synchronization_thread)
+        t.start()
 
     def _vlans_used(self):
         return self._segm_type_used(driver_api.VLAN_SEGMENTATION)
