@@ -26,19 +26,15 @@ from quantum.openstack.common import log as logging
 
 LOG = logging.getLogger(__name__)
 
-HW_DRIVER_OPTS = [
-    cfg.ListOpt('hw_drivers',
+HARDWARE_DRIVER_OPTS = [
+    cfg.ListOpt('hardware_drivers',
                 default=('quantum.common.hardware_driver.drivers.'
                          'dummy.DummyDriver'),
-                help=_('OVS driver used as a backend.')),
-    cfg.StrOpt('hw_driver_segmentation_type',
-               default='vlan',
-               help=_('L2 segmentation type to be used on hardware routers. '
-                      'One of vlan or tunnel is supported.'))
+                help=_('Hardware driver used as a backend.'))
 ]
 
 
-cfg.CONF.register_opts(HW_DRIVER_OPTS, "HW_DRIVER")
+cfg.CONF.register_opts(HARDWARE_DRIVER_OPTS, "HARDWARE_DRIVER")
 
 
 class InvalidDelegateError(exceptions.QuantumException):
@@ -58,7 +54,7 @@ class DriverAdapter(object):
         lambda network_id: segmentation_id_for(network_id)
     """
 
-    required_options = ['hw_driver_segmentation_type', 'hw_drivers']
+    required_options = ['hardware_drivers']
     drivers_available = False
 
     def __init__(self, get_segmentation_id_delegate):
@@ -67,22 +63,21 @@ class DriverAdapter(object):
         :param get_segmentation_id_delegate: function returning segmentation ID
         for a given network ID. Must have one argument.
         """
-        config = cfg.CONF.HW_DRIVER
+        config = cfg.CONF.HARDWARE_DRIVER
 
         self._verify_get_segmentation_id(get_segmentation_id_delegate)
         self._verify_configuration()
 
+        self._get_segmentation_id = get_segmentation_id_delegate
+
         self._drivers = []
-        segm_type = config['hw_driver_segmentation_type']
 
         # leave unique driver names
-        hw_drivers = self._unique(config['hw_drivers'])
+        hw_drivers = self._unique(config['hardware_drivers'])
         for driver in hw_drivers:
             hw_driver_class = importutils.import_class(driver)
             if hw_driver_class is not dummy.DummyDriver:
                 hw_driver = hw_driver_class()
-                hw_driver.segmentation_type = segm_type
-                hw_driver._get_segmentation_id = get_segmentation_id_delegate
                 self._drivers.append(hw_driver)
 
         if self._drivers:
@@ -135,7 +130,7 @@ class DriverAdapter(object):
             raise InvalidDelegateError(msg=msg)
 
     def _verify_configuration(self):
-        config = cfg.CONF.HW_DRIVER
+        config = cfg.CONF.HARDWARE_DRIVER
         for opt in self.required_options:
             if opt not in config or config[opt] is None:
                 msg = _('Required option %s is not set') % opt

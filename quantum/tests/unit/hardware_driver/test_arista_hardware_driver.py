@@ -320,6 +320,17 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
         self.fake_rpc.unplug_host_from_vlan.call_arg_list = expected_unplugs
 
 
+class KeepAliveServicTestCase(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+    def test_remote_server_in_sync_on_empty_db(self):
+        self.assertTrue(True)
+
+
 class RealNetStorageOVSDriverTestCase(unittest.TestCase):
     def setUp(self):
         self.fake_rpc = mock.MagicMock()

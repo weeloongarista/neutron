@@ -23,6 +23,7 @@ from quantum.common import exceptions
 from quantum.openstack.common import cfg
 from quantum.openstack.common import log as logging
 from quantum.common.hardware_driver import driver_api
+import eventlet
 
 
 LOG = logging.getLogger(__name__)
@@ -37,7 +38,11 @@ ARISTA_DRIVER_OPTS = [
                help=_('Password for Arista vEOS')),
     cfg.StrOpt('arista_eapi_host',
                default=None,
-               help=_('Arista vEOS host IP'))
+               help=_('Arista vEOS host IP')),
+    cfg.StrOpt('arista_segmentation_type',
+               default=driver_api.VLAN_SEGMENTATION,
+               help=_('L2 segmentation type to be used on hardware routers. '
+                      'One of vlan or tunnel is supported.'))
 ]
 
 cfg.CONF.register_opts(ARISTA_DRIVER_OPTS, "ARISTA_DRIVER")
@@ -283,6 +288,13 @@ class AristaRPCWrapper(object):
                 raise AristaConfigError(msg=msg)
 
 
+class KeepAliveService(object):
+    def __init__(self):
+        self._net_storage = ProvisionedNetsStorage()
+        self._rpc = AristaRPCWrapper()
+        self._timeout = 10
+
+
 class AristaDriver(driver_api.HardwareDriverAPI):
     """OVS driver for Arista networking hardware.
 
@@ -299,7 +311,9 @@ class AristaDriver(driver_api.HardwareDriverAPI):
 
         self.net_storage = net_storage
         self.net_storage.initialize()
-        self.segmentation_type = driver_api.VLAN_SEGMENTATION
+
+        config = cfg.CONF.ARISTA_DRIVER
+        self.segmentation_type = config['arista_segmentation_type']
 
     def create_network(self, network_id):
         self.net_storage.remember_network(network_id)
