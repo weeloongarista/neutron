@@ -344,13 +344,28 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
         self.drv.unplug_host(network_id, vlan_id, host2_id)
         self.drv.unplug_host(network_id, vlan_id, host1_id)
 
-        expected_plugs = [(network_id, vlan_id, host1_id),
-                          (network_id, vlan_id, host2_id)]
-        expected_unplugs = [(network_id, vlan_id, host2_id),
-                            (network_id, vlan_id, host1_id)]
+        expected_plugs = [mock.call(network_id, vlan_id, host1_id),
+                          mock.call(network_id, vlan_id, host2_id)]
+        expected_unplugs = [mock.call(network_id, vlan_id, host2_id),
+                            mock.call(network_id, vlan_id, host1_id)]
 
         self.fake_rpc.plug_host_into_vlan.call_arg_list = expected_plugs
         self.fake_rpc.unplug_host_from_vlan.call_arg_list = expected_unplugs
+
+    def test_fqdns_are_sent_on_plug_when_option_is_set(self):
+        network_id = 'net-id'
+        vlan_id = 1234
+        hostname = 'ubuntu1'
+        host = hostname + '.domain.com'
+
+        self.net_storage_mock.is_network_provisioned.return_value = False
+
+        self.drv.create_network(network_id)
+        self.drv.plug_host(network_id, vlan_id, host)
+
+        self.fake_rpc.plug_host_into_vlan.assert_called_once_with(network_id,
+                                                                  vlan_id,
+                                                                  hostname)
 
 
 class KeepAliveServicTestCase(unittest.TestCase):
@@ -518,7 +533,7 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
     def test_rpc_brocker_method_is_called(self):
         network_id = 123
         vlan_id = 123
-        host_id = 123
+        host_id = '123'
 
         self.drv.plug_host(network_id, vlan_id, host_id)
         self.fake_rpc.plug_host_into_vlan.assert_called_once_with(network_id,

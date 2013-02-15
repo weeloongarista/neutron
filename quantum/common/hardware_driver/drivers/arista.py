@@ -43,7 +43,11 @@ ARISTA_DRIVER_OPTS = [
     cfg.StrOpt('arista_segmentation_type',
                default=driver_api.VLAN_SEGMENTATION,
                help=_('L2 segmentation type to be used on hardware routers. '
-                      'One of vlan or tunnel is supported.'))
+                      'One of vlan or tunnel is supported.')),
+    cfg.StrOpt('arista_use_fqdn',
+               default=False,
+               help=_('Defines if hostnames are sent to Arista vEOS as FQDNs '
+                      '("node1.domain.com") or as short names ("node1")'))
 ]
 
 cfg.CONF.register_opts(ARISTA_DRIVER_OPTS, "ARISTA_DRIVER")
@@ -330,10 +334,7 @@ class SyncService(object):
         veos_net_list = self._rpc.get_network_list()
         db_net_list = self._db.get_network_list()
 
-        if veos_net_list != db_net_list:
-            return False
-
-        return True
+        return veos_net_list == db_net_list
 
     def synchronize(self):
         """Sends data to vEOS which differs from quantum DB."""
@@ -408,12 +409,12 @@ class AristaDriver(driver_api.HardwareDriverAPI):
             was_provisioned = storage.is_network_provisioned(network_id,
                                                              segmentation_id,
                                                              host_id)
-
+            hostname = self._host_name(host_id)
             if was_provisioned:
                 if self._vlans_used():
                     self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
-                                                   host_id)
-                storage.forget_host(network_id, host_id)
+                                                   hostname)
+                storage.forget_host(network_id, hostname)
 
     def plug_host(self, network_id, segmentation_id, host_id):
         with self.veos_sync_lock:
@@ -421,14 +422,19 @@ class AristaDriver(driver_api.HardwareDriverAPI):
             already_provisioned = s.is_network_provisioned(network_id,
                                                            segmentation_id,
                                                            host_id)
-
+            hostname = self._host_name(host_id)
             if not already_provisioned:
                 if self._vlans_used():
                     self.rpc.plug_host_into_vlan(network_id,
                                                  segmentation_id,
-                                                 host_id)
+                                                 hostname)
 
-            s.remember_host(network_id, segmentation_id, host_id)
+            s.remember_host(network_id, segmentation_id, hostname)
+
+    def _host_name(self, hostname):
+        fqdns_used = cfg.CONF.ARISTA_DRIVER['arista_use_fqdn']
+        if not fqdns_used:
+            return hostname.split('.')[0]
 
     def _synchronization_thread(self):
         with self.veos_sync_lock:
