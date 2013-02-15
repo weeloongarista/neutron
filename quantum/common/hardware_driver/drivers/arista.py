@@ -434,8 +434,7 @@ class AristaDriver(driver_api.HardwareDriverAPI):
                     self.rpc.plug_host_into_vlan(network_id,
                                                  segmentation_id,
                                                  hostname)
-
-            s.remember_host(network_id, segmentation_id, hostname)
+                s.remember_host(network_id, segmentation_id, hostname)
 
     def _host_name(self, hostname):
         fqdns_used = cfg.CONF.ARISTA_DRIVER['arista_use_fqdn']
