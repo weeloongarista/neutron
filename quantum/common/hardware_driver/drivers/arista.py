@@ -88,10 +88,10 @@ class ProvisionedNetsStorage(object):
         def veos_representation(self):
             segm_type = cfg.CONF.ARISTA_DRIVER['arista_segmentation_type']
 
-            return {'hostId': self.host_id,
-                    'networkId': self.network_id,
-                    'segmentationId': self.segmentation_id,
-                    'segmentationType': segm_type}
+            return {u'hostId': self.host_id,
+                    u'name': self.network_id,
+                    u'segmentationId': self.segmentation_id,
+                    u'segmentationType': segm_type}
 
     def initialize(self):
         db.configure_db()
@@ -178,7 +178,7 @@ class ProvisionedNetsStorage(object):
 
     def store_provisioned_vlans(self, networks):
         for net in networks:
-            self.remember_host(net['networkId'],
+            self.remember_host(net['name'],
                                net['segmentationId'],
                                net['hostId'])
 
@@ -188,13 +188,17 @@ class ProvisionedNetsStorage(object):
         See AristaRPCWrapper.get_network_list() for return value format."""
         session = db.get_session()
         with session.begin():
-            all_nets = session.query(self.AristaProvisionedNets).all()
+            model = self.AristaProvisionedNets
+            all_nets = (session.query(model).
+                        filter(model.host_id != None).
+                        filter(model.segmentation_id != None).
+                        all())
             res = {}
             for net in all_nets:
                 all_hosts = self.get_all_hosts_for_net(net.network_id)
                 hosts = [host.host_id for host in all_hosts]
                 res[net.network_id] = net.veos_representation()
-                res[net.network_id]['hostId'] = hosts
+                res[net.network_id]['hostId'] = sorted(hosts)
             return res
 
 
@@ -227,6 +231,8 @@ class AristaRPCWrapper(object):
         """
         command_output = self._run_openstack_cmd(['show openstack'])
         networks = command_output[0]['networks']
+        for net in networks.values():
+            net['hostId'].sort()
 
         return networks
 

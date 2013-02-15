@@ -161,11 +161,11 @@ class AristaProvisionedVlansStorageTestCase(unittest.TestCase):
         vlan2_id = 1234
         hosts_net1 = ['host1', 'host2', 'host3']
         hosts_net2 = ['host1']
-        expected_veos_net_list = {network_id: {'networkId': network_id,
+        expected_veos_net_list = {network_id: {'name': network_id,
                                                'hostId': hosts_net1,
                                                'segmentationId': vlan_id,
                                                'segmentationType': segm_type},
-                                  network2_id: {'networkId': network2_id,
+                                  network2_id: {'name': network2_id,
                                                 'hostId': hosts_net2,
                                                 'segmentationId': vlan2_id,
                                                 'segmentationType': segm_type}}
@@ -256,7 +256,8 @@ class PositiveRPCWrapperValidConfigTestCase(unittest.TestCase):
                          ('Must return network info for a valid net'))
 
     def test_rpc_is_sent_on_get_network_list(self):
-        net = {'netId': 123, 'hostId': 'host1'}
+        net_id = '123'
+        net = {net_id: {'name': net_id, 'hostId': ['host1']}}
         net_list_veos = {'networks': net}
         cli_ret = [{}, {}, net_list_veos, {}]
 
@@ -471,7 +472,7 @@ class KeepAliveServicTestCase(unittest.TestCase):
         data = {}
 
         for net in nets:
-            data[net] = {'networkId': net,
+            data[net] = {'name': net,
                          'hostId': hosts,
                          'segmentationId': segm_id,
                          'segmentationType': driver_api.VLAN_SEGMENTATION}
