@@ -416,10 +416,11 @@ class AristaDriver(driver_api.HardwareDriverAPI):
     def unplug_host(self, network_id, segmentation_id, host_id):
         with self.veos_sync_lock:
             storage = self.net_storage
+            hostname = self._host_name(host_id)
             was_provisioned = storage.is_network_provisioned(network_id,
                                                              segmentation_id,
-                                                             host_id)
-            hostname = self._host_name(host_id)
+                                                             hostname)
+
             if was_provisioned:
                 if self._vlans_used():
                     self.rpc.unplug_host_from_vlan(network_id, segmentation_id,
@@ -429,10 +430,10 @@ class AristaDriver(driver_api.HardwareDriverAPI):
     def plug_host(self, network_id, segmentation_id, host_id):
         with self.veos_sync_lock:
             s = self.net_storage
+            hostname = self._host_name(host_id)
             already_provisioned = s.is_network_provisioned(network_id,
                                                            segmentation_id,
-                                                           host_id)
-            hostname = self._host_name(host_id)
+                                                           hostname)
             if not already_provisioned:
                 if self._vlans_used():
                     self.rpc.plug_host_into_vlan(network_id,
@@ -442,8 +443,7 @@ class AristaDriver(driver_api.HardwareDriverAPI):
 
     def _host_name(self, hostname):
         fqdns_used = cfg.CONF.ARISTA_DRIVER['arista_use_fqdn']
-        if not fqdns_used:
-            return hostname.split('.')[0]
+        return hostname if fqdns_used else hostname.split('.')[0]
 
     def _synchronization_thread(self):
         with self.veos_sync_lock:

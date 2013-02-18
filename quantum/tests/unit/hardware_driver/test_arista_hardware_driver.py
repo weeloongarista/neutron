@@ -489,6 +489,49 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
 
     def tearDown(self):
         self.net_storage.tear_down()
+        cfg.CONF.clear()
+
+    def test_same_vlans_not_provisioned_more_than_once_for_short_names(self):
+        cfg.CONF.set_override('arista_use_fqdn', False, 'ARISTA_DRIVER')
+
+        net_id = 'net-id-123'
+        vlan_id = 1002
+        hosts = ['host1', 'host2', 'host1', 'host1', 'host2']
+        expected_hosts = ['host1', 'host2']
+        nets = [(net_id, vlan_id, host) for host in hosts]
+
+        for net, vlan, host in nets:
+            self.drv.plug_host(net, vlan, host)
+
+        expected_calls = [mock.call(net_id, vlan_id, host) for host in
+                          expected_hosts]
+        actual_calls = self.fake_rpc.plug_host_into_vlan.call_args_list
+
+        self.assertTrue(actual_calls == expected_calls, ('Expected '
+                        '%(expected_calls)s, got %(actual_calls)s' % locals()))
+
+    def test_same_vlans_not_provisioned_more_than_once_for_fqdn_names(self):
+        cfg.CONF.set_override('arista_use_fqdn', True, 'ARISTA_DRIVER')
+
+        net_id = 'net-id-123'
+        vlan_id = 1002
+        domain = 'service.organization.com'
+        hosts = ['host1', 'host2', 'host1', 'host1', 'host2']
+        hosts = [h + '.' + domain for h in hosts]
+        expected_hosts = ['host1', 'host2']
+        expected_hosts = [h + '.' + domain for h in expected_hosts]
+
+        nets = [(net_id, vlan_id, host) for host in hosts]
+
+        for net, vlan, host in nets:
+            self.drv.plug_host(net, vlan, host)
+
+        expected_calls = [mock.call(net_id, vlan_id, host) for host in
+                          expected_hosts]
+        actual_calls = self.fake_rpc.plug_host_into_vlan.call_args_list
+
+        self.assertTrue(actual_calls == expected_calls, ('Expected '
+                        '%(expected_calls)s, got %(actual_calls)s' % locals()))
 
     def test_rpc_request_not_sent_for_existing_vlan_after_plug_host(self):
         network_id = 'net1-id'
@@ -497,14 +540,13 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
 
         # Common use-case:
         #   1. User creates network - quantum net-create net1
-        #   2. Boots 3 VMs connected to previously created quantum network
+        #   2. Boots 5 VMs connected to previously created quantum network
         #      'net1', and VMs are scheduled on the same hypervisor
         # In this case RPC request must be sent only once
         self.drv.create_network(network_id)
 
-        self.drv.plug_host(network_id, vlan_id, host_id)
-        self.drv.plug_host(network_id, vlan_id, host_id)
-        self.drv.plug_host(network_id, vlan_id, host_id)
+        for _ in range(5):
+            self.drv.plug_host(network_id, vlan_id, host_id)
 
         self.fake_rpc.plug_host_into_vlan.assert_called_once_with(network_id,
                                                                   vlan_id,
