@@ -339,22 +339,32 @@ class SyncService(object):
         self._db = net_storage
         self._rpc = rpc_wrapper
 
-    def is_synchronized(self):
-        """Checks whether quantum DB is in sync with vEOS DB"""
-        veos_net_list = self._rpc.get_network_list()
-        db_net_list = self._db.get_network_list()
-
-        return veos_net_list == db_net_list
-
     def synchronize(self):
         """Sends data to vEOS which differs from quantum DB."""
-        veos_net_list = self._rpc.get_network_list()
+        LOG.info('Syncing Quantum <-> vEOS')
+        try:
+            veos_net_list = self._rpc.get_network_list()
+        except AristaRpcError:
+            msg = _('vEOS is not available, will try sync later')
+            LOG.warning(msg)
+            return
+
         db_net_list = self._db.get_network_list()
+
+        # do nothing if net lists are the same in quantum and on vEOS
+        if veos_net_list == db_net_list:
+            return
+
+        # delete network from vEOS if it is not present in quantum DB
+        for net_id in veos_net_list:
+            if net_id not in db_net_list:
+                self._rpc.delete_network(net_id)
 
         for net_id in db_net_list:
             db_net = db_net_list[net_id]
 
-            # if network does not exist on vEOS
+            # update vEOS if network is present in quantum DB but does not
+            # exist on vEOS
             if net_id not in veos_net_list:
                 self._send_network_configuration(db_net_list, net_id)
             # if network exists, but hosts do not match
@@ -410,8 +420,17 @@ class AristaDriver(driver_api.HardwareDriverAPI):
     def delete_network(self, network_id):
         with self.veos_sync_lock:
             if self.net_storage.is_network_provisioned(network_id):
-                self.rpc.delete_network(network_id)
-                self.net_storage.forget_network(network_id)
+                # Succeed deleting network in case vEOS is not accessible.
+                # vEOS state will be updated by sync thread once vEOS gets
+                # alive.
+                try:
+                    self.rpc.delete_network(network_id)
+                except AristaRpcError:
+                    msg = _('Unable to reach vEOS, will update it\'s state '
+                            'during synchronization')
+                    LOG.info(msg)
+                finally:
+                    self.net_storage.forget_network(network_id)
 
     def unplug_host(self, network_id, segmentation_id, host_id):
         with self.veos_sync_lock:
@@ -447,8 +466,7 @@ class AristaDriver(driver_api.HardwareDriverAPI):
 
     def _synchronization_thread(self):
         with self.veos_sync_lock:
-            if not self.veos.is_synchronized():
-                self.veos.synchronize()
+            self.veos.synchronize()
 
         t = threading.Timer(self.sync_timeout, self._synchronization_thread)
         t.start()

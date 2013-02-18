@@ -368,6 +368,12 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
                                                                   vlan_id,
                                                                   hostname)
 
+    def test_rpc_error_is_ignored_on_delete_network(self):
+        net_id = 'net-id1'
+        self.fake_rpc.delete_network.side_effect = arista.AristaRpcError()
+        self.drv.delete_network(net_id)
+        self.net_storage_mock.forget_network.assert_called_once_with(net_id)
+
 
 class KeepAliveServicTestCase(unittest.TestCase):
     def setUp(self):
@@ -379,35 +385,34 @@ class KeepAliveServicTestCase(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_remote_server_in_sync_on_empty_db(self):
+    def test_network_gets_deleted_if_not_present_in_quantum_db(self):
         service = self.service
 
-        self.rpc.get_network_list.return_value = {}
-        self.db.get_network_list.return_value = {}
-
-        in_sync = service.is_synchronized()
-
-        self.assertTrue(in_sync, ('Quantum DB and vEOS should be in sync '
-                                  'for empty DBs'))
-
-    def test_not_in_sync_on_empty_veos_but_not_empty_quantum(self):
-        service = self.service
-        net_id = ['123']
-        hosts = ['host1', 'host2']
+        veos_nets = ['net1-id', 'net2-id']
+        veos_hosts = ['host1', 'host2']
         vlan_id = 123
-        db_data = self._veos_data_factory(net_id, hosts, vlan_id)
+        veos_data = self._veos_data_factory(veos_nets, veos_hosts, vlan_id)
 
-        # single host is missing on vEOS
-        veos_data = self._veos_data_factory(net_id, hosts[:1], vlan_id)
+        db_nets = ['net3-id', 'net4-id']
+        db_hosts = ['host1', 'host2']
+        vlan_id = 234
+        db_data = self._veos_data_factory(db_nets, db_hosts, vlan_id)
 
         self.rpc.get_network_list.return_value = veos_data
         self.db.get_network_list.return_value = db_data
 
-        in_sync = service.is_synchronized()
+        service.synchronize()
 
-        self.assertFalse(in_sync, ('Quantum DB and vEOS are NOT be in sync '
-                                   'when there is nothing on vEOS and some '
-                                   'data in Quantum'))
+        deleted_nets = []
+        for net in veos_nets:
+            if net not in db_nets:
+                deleted_nets.append(net)
+
+        expected_calls = [mock.call(net) for net in deleted_nets].sort()
+        actual_calls = self.rpc.delete_network.call_args_list.sort()
+
+        self.assertTrue(expected_calls == actual_calls, ('Expected '
+                        '%(expected_calls)s, got %(actual_calls)s' % locals()))
 
     def test_synchronize_sends_missing_hosts_to_veos(self):
         service = self.service
@@ -480,7 +485,7 @@ class KeepAliveServicTestCase(unittest.TestCase):
         return data
 
 
-class RealNetStorageOVSDriverTestCase(unittest.TestCase):
+class RealNetStorageAristaDriverTestCase(unittest.TestCase):
     def setUp(self):
         self.fake_rpc = mock.MagicMock()
         self.net_storage = arista.ProvisionedNetsStorage()
@@ -517,9 +522,9 @@ class RealNetStorageOVSDriverTestCase(unittest.TestCase):
         vlan_id = 1002
         domain = 'service.organization.com'
         hosts = ['host1', 'host2', 'host1', 'host1', 'host2']
-        hosts = [h + '.' + domain for h in hosts]
+        hosts = ['.'.join([h, domain]) for h in hosts]
         expected_hosts = ['host1', 'host2']
-        expected_hosts = [h + '.' + domain for h in expected_hosts]
+        expected_hosts = ['.'.join([h, domain]) for h in expected_hosts]
 
         nets = [(net_id, vlan_id, host) for host in hosts]
 
