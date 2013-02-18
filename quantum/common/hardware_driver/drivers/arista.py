@@ -47,7 +47,11 @@ ARISTA_DRIVER_OPTS = [
     cfg.StrOpt('arista_use_fqdn',
                default=False,
                help=_('Defines if hostnames are sent to Arista vEOS as FQDNs '
-                      '("node1.domain.com") or as short names ("node1")'))
+                      '("node1.domain.com") or as short names ("node1")')),
+    cfg.IntOpt('arista_sync_interval',
+               default=10,
+               help=_('Sync interval in seconds between Quantum plugin and '
+                      'vEOS'))
 ]
 
 cfg.CONF.register_opts(ARISTA_DRIVER_OPTS, "ARISTA_DRIVER")
@@ -394,7 +398,7 @@ class AristaDriver(driver_api.HardwareDriverAPI):
         self.segmentation_type = config['arista_segmentation_type']
 
         self.veos = SyncService(self.net_storage, self.rpc)
-        self.sync_timeout = 10
+        self.sync_timeout = config['arista_sync_interval']
         self.veos_sync_lock = threading.Lock()
 
         self._synchronization_thread()
