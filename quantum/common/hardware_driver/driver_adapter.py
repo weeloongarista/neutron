@@ -89,8 +89,12 @@ class DriverAdapter(object):
 
         p = port['port']
         host = p.get(portbindings.HOST_ID)
+        device_id = p.get('device_id')
+        device_owner = p.get('device_owner')
+        # device_id and device_owner are set on VM boot
+        is_vm_boot = True if device_id and device_owner else False
 
-        if host:
+        if host and is_vm_boot:
             network_id = p['network_id']
             segmentation_id = self._get_segmentation_id(network_id)
 
