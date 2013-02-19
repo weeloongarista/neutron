@@ -76,9 +76,8 @@ class DriverAdapter(object):
         hw_drivers = self._unique(config['hardware_drivers'])
         for driver in hw_drivers:
             hw_driver_class = importutils.import_class(driver)
-            if hw_driver_class is not dummy.DummyDriver:
-                hw_driver = hw_driver_class()
-                self._drivers.append(hw_driver)
+            hw_driver = hw_driver_class()
+            self._drivers.append(hw_driver)
 
         if self._drivers:
             self.drivers_available = True

@@ -17,9 +17,10 @@
 import mock
 import unittest2 as unittest
 
-from quantum.openstack.common import cfg
 from quantum.common.hardware_driver import driver_adapter
 from quantum.common.hardware_driver import driver_api
+from quantum.extensions import portbindings
+from quantum.openstack.common import cfg
 
 
 class FakeHwDriver(driver_api.HardwareDriverAPI):
@@ -49,14 +50,18 @@ class HardwareDriverAdapterTestCase(unittest.TestCase):
         cfg.CONF.set_override('hardware_drivers', drivers_cfg,
                               'HARDWARE_DRIVER')
 
-    @classmethod
-    def _valid_get_vlan_id(net_id):
-        return '1234'
+    def _valid_get_segm_id(self):
+        def get_vlan_id(_):
+            return '123'
+        return get_vlan_id
 
-    def test_calls_all_drivers(self):
+    def _invalid_get_segm_id(self):
+        return object()
+
+    def test_calls_all_drivers_on_create_network(self):
         self._config_multiple_drivers()
 
-        drv = driver_adapter.DriverAdapter(self._valid_get_vlan_id)
+        drv = driver_adapter.DriverAdapter(self._valid_get_segm_id())
         net_id = '123'
         network = {'id': net_id}
 
@@ -70,10 +75,64 @@ class HardwareDriverAdapterTestCase(unittest.TestCase):
         fake_dummy_drv.create_network.assert_called_once_with(net_id)
         fake_ovs_drv.create_network.assert_called_once_with(net_id)
 
+    def test_call_all_drivers_on_port_create_if_vm_boot(self):
+        self._config_multiple_drivers()
+        get_segm_id_delegate = self._valid_get_segm_id()
+        drv = driver_adapter.DriverAdapter(get_segm_id_delegate)
+
+        # when VM is booted, 'device_id' and 'device_owner' parameters are set
+        # for a port
+        net_id = 'net_id'
+        vlan_id = get_segm_id_delegate(net_id)
+        host_id = 'host1'
+        port = {'port': {portbindings.HOST_ID: host_id,
+                         'device_id': 'device_id',
+                         'device_owner': 'device_owner',
+                         'network_id': net_id}}
+
+        fake_dummy_drv = mock.MagicMock()
+        fake_hw_drv = mock.MagicMock()
+
+        drv._drivers = [fake_dummy_drv, fake_hw_drv]
+
+        drv.on_port_create(port)
+
+        fake_dummy_drv.plug_host.assert_called_once_with(net_id, vlan_id,
+                                                         host_id)
+        fake_hw_drv.plug_host.assert_called_once_with(net_id, vlan_id, host_id)
+
+    def test_doesnt_call_drivers_on_port_create_if_not_vm_boot(self):
+        self._config_multiple_drivers()
+
+        drv = driver_adapter.DriverAdapter(self._valid_get_segm_id())
+
+        # when VM is booted, 'device_id' and 'device_owner' parameters are set
+        # for a port
+        port = {'port': {portbindings.HOST_ID: 'host1',
+                         'network_id': 'net_id'}}
+
+        fake_dummy_drv = mock.MagicMock()
+        fake_hw_drv = mock.MagicMock()
+
+        drv._drivers = [fake_dummy_drv, fake_hw_drv]
+
+        drv.on_port_create(port)
+
+        self.assertTrue(fake_dummy_drv.plug_host.call_args_list == [])
+        self.assertTrue(fake_hw_drv.plug_host.call_args_list == [])
+
+    def test_error_is_raised_on_invalid_get_segm_id_delegate(self):
+        invalid_get_segm_id_delegate = self._invalid_get_segm_id()
+
+        self.assertRaises(driver_adapter.InvalidDelegateError,
+                          driver_adapter.DriverAdapter,
+                          invalid_get_segm_id_delegate)
+
     def test_error_is_raised_on_invalid_configuration(self):
         # Config values should not be None
         cfg.CONF.set_override('hardware_drivers', None, 'HARDWARE_DRIVER')
+        get_vlan_id_delegate = self._valid_get_segm_id()
 
         self.assertRaises(driver_adapter.DriverConfigError,
                           driver_adapter.DriverAdapter,
-                          self._valid_get_vlan_id)
+                          get_vlan_id_delegate)
