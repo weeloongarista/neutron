@@ -36,6 +36,7 @@ ARISTA_DRIVER_OPTS = [
                help=_('Username for Arista vEOS')),
     cfg.StrOpt('arista_eapi_pass',
                default=None,
+               secret=True,  # do not expose value in the logs
                help=_('Password for Arista vEOS')),
     cfg.StrOpt('arista_eapi_host',
                default=None,
