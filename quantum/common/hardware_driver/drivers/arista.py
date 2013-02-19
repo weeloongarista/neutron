@@ -194,9 +194,12 @@ class ProvisionedNetsStorage(object):
         session = db.get_session()
         with session.begin():
             model = self.AristaProvisionedNets
+            # hack for pep8 E711: comparison to None should be
+            # 'if cond is not None'
+            none = None
             all_nets = (session.query(model).
-                        filter(model.host_id != None).
-                        filter(model.segmentation_id != None).
+                        filter(model.host_id != none).
+                        filter(model.segmentation_id != none).
                         all())
             res = {}
             for net in all_nets:
