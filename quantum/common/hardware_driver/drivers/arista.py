@@ -45,10 +45,10 @@ ARISTA_DRIVER_OPTS = [
                default=driver_api.VLAN_SEGMENTATION,
                help=_('L2 segmentation type to be used on hardware routers. '
                       'One of vlan or tunnel is supported.')),
-    cfg.StrOpt('arista_use_fqdn',
-               default=False,
-               help=_('Defines if hostnames are sent to Arista vEOS as FQDNs '
-                      '("node1.domain.com") or as short names ("node1")')),
+    cfg.BoolOpt('arista_use_fqdn',
+                default=False,
+                help=_('Defines if hostnames are sent to Arista vEOS as FQDNs '
+                       '("node1.domain.com") or as short names ("node1")')),
     cfg.IntOpt('arista_sync_interval',
                default=10,
                help=_('Sync interval in seconds between Quantum plugin and '
