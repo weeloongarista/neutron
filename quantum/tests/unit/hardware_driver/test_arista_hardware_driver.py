@@ -295,9 +295,6 @@ class FakeNetStorageAristaOVSDriverTestCase(unittest.TestCase):
 
         self.net_storage_mock.initialize.assert_called_once_with()
 
-    def tearDown(self):
-        pass
-
     def test_no_rpc_call_on_delete_network_if_it_was_not_provisioned(self):
         network_id = 'net1-id'
 
@@ -381,9 +378,6 @@ class KeepAliveServicTestCase(unittest.TestCase):
         self.db = mock.Mock(spec=arista.ProvisionedNetsStorage)
 
         self.service = arista.SyncService(self.db, self.rpc)
-
-    def tearDown(self):
-        pass
 
     def test_network_gets_deleted_if_not_present_in_quantum_db(self):
         service = self.service
