@@ -291,7 +291,7 @@ class AristaRPCWrapper(object):
         if type(commands) is not list:
             commands = [commands]
 
-        command_start = ['configure', 'management openstack']
+        command_start = ['enable', 'configure', 'management openstack']
         command_end = ['exit']
         full_command = command_start + commands + command_end
 
@@ -302,7 +302,7 @@ class AristaRPCWrapper(object):
         try:
             # this returns array of return values for every command in
             # full_command list
-            ret = self._server.runCmds(cmds=full_command)
+            ret = self._server.runCmds(version=1, cmds=full_command)
 
             # Remove return values for 'configure terminal',
             # 'management openstack' and 'exit' commands
