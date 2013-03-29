@@ -21,3 +21,6 @@ oslo.config>=1.1.0
 # Cisco plugin dependencies
 python-novaclient
 # End Cisco dependencies
+
+# Arista OVS driver dependency
+jsonrpclib
