@@ -469,7 +469,7 @@ class AristaDriver(driver_api.HardwareDriverAPI):
 
     def _host_name(self, hostname):
         fqdns_used = cfg.CONF.ARISTA_DRIVER['arista_use_fqdn']
-        return hostname if fqdns_used else hostname.split('.')[0]
+        return hostname if not fqdns_used else hostname.split('.')[0]
 
     def _synchronization_thread(self):
         with self.veos_sync_lock:
