@@ -103,7 +103,11 @@ def create_nvp_cluster(cluster_opts, concurrent_connections,
     config.register_deprecated(cfg.CONF)
     # ### END
     cluster = nvp_cluster.NVPCluster(**cluster_opts)
-    api_providers = [ctrl.split(':') + [True]
+
+    def _ctrl_split(x, y):
+        return (x, int(y), True)
+
+    api_providers = [_ctrl_split(*ctrl.split(':'))
                      for ctrl in cluster.nvp_controllers]
     cluster.api_client = NvpApiClient.NVPApiHelper(
         api_providers, cluster.nvp_user, cluster.nvp_password,
@@ -1965,6 +1969,16 @@ class NvpPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def update_network_gateway(self, context, id, network_gateway):
         # Ensure the default gateway in the config file is in sync with the db
         self._ensure_default_network_gateway()
+        # Update gateway on backend when there's a name change
+        name = network_gateway[networkgw.RESOURCE_NAME].get('name')
+        if name:
+            try:
+                nvplib.update_l2_gw_service(self.cluster, id, name)
+            except NvpApiClient.NvpApiException:
+                # Consider backend failures as non-fatal, but still warn
+                # because this might indicate something dodgy is going on
+                LOG.warn(_("Unable to update name on NVP backend "
+                           "for network gateway: %s"), id)
         return super(NvpPluginV2, self).update_network_gateway(
             context, id, network_gateway)
 
