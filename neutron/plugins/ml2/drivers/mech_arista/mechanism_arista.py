@@ -377,12 +377,12 @@ class AristaRPCWrapper(object):
         """
         cmds = ['auth url %s user "%s" password "%s"' %
                 (self._keystone_url(),
-                self.keystone_conf.admin_user,
-                self.keystone_conf.admin_password)]
+                cfg.CONF.ml2_arista.openstack_username,
+                cfg.CONF.ml2_arista.openstack_password)]
 
         log_cmds = ['auth url %s user %s password ******' %
                     (self._keystone_url(),
-                    self.keystone_conf.admin_user)]
+                    cfg.CONF.ml2_arista.openstack_username)]
 
         self._run_openstack_cmds(cmds, commands_to_log=log_cmds)
 
