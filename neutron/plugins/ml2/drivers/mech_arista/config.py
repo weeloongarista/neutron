@@ -63,17 +63,7 @@ ARISTA_DRIVER_OPTS = [
                       'the region name registered (or known) to keystone'
                       'service. Authentication with Keysotne is performed by'
                       'EOS. This is optional. If not set, a value of'
-                      '"RegionOne" is assumed')),
-    cfg.StrOpt('openstack_username',
-               default='admin',
-               help=_('OpenStack username that Arista EOS will use to'
-                      'query for information outside Neutron. Note that this'
-                      'username will need to have read privileges to all'
-                      'OpenStack data.')),
-    cfg.StrOpt('openstack_password',
-               default='password',
-               help=_('OpenStack password for the account configured in'
-                      'the openstack_username option.'))
+                      '"RegionOne" is assumed'))
 ]
 
 cfg.CONF.register_opts(ARISTA_DRIVER_OPTS, "ml2_arista")
