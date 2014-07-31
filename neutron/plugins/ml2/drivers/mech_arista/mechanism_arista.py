@@ -375,14 +375,16 @@ class AristaRPCWrapper(object):
         This the initial handshake between Neutron and EOS.
         critical end-point information is registered with EOS.
         """
-        cmds = ['auth url %s user "%s" password "%s"' %
+        cmds = ['auth url %s user "%s" password "%s" tenant "%s"' %
                 (self._keystone_url(),
                 self.keystone_conf.admin_user,
-                self.keystone_conf.admin_password)]
+                self.keystone_conf.admin_password,
+                self.keystone_conf.admin_tenant_name)]
 
-        log_cmds = ['auth url %s user %s password ******' %
+        log_cmds = ['auth url %s user %s password ****** tenant %s' %
                     (self._keystone_url(),
-                    self.keystone_conf.admin_user)]
+                    self.keystone_conf.admin_user,
+                    self.keystone_conf.admin_tenant_name)]
 
         self._run_openstack_cmds(cmds, commands_to_log=log_cmds)
 
