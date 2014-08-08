@@ -368,20 +368,45 @@ class AristaRPCWrapper(object):
                 'exit']
         self._run_eos_cmds(cmds)
 
+    def _build_register_cmd(self, url, user, password, tenant):
+        """Builds the registration command for EOS
+
+        This build the appropriate registration command for different
+        EOS versions.
+
+        :param url : Endpoint URL
+        :param user : Endpoint user
+        :param password : Endpoint password
+        :param tenant : Endpoint tenant
+        """
+
+        probeCmd = ["auth url a user b password c tenant d"]
+
+        try:
+            self._run_openstack_cmds(probeCmd)
+            cmds = ("auth url %s user %s password %s tenant %s" %
+                    (url, user, password, tenant))
+            log_cmds = ("auth url %s user %s password ***** tenant %s" %
+                        (url, user, tenant))
+        except arista_exc.AristaRpcError:
+            cmds = ("auth url %s user %s password %s" %
+                    (url, user, password))
+            log_cmds = ("auth url %s user %s password" %
+                        (url, user))
+
+        return [cmds], [log_cmds]
+
     def register_with_eos(self):
         """This is the registration request with EOS.
 
         This the initial handshake between Neutron and EOS.
         critical end-point information is registered with EOS.
         """
-        cmds = ['auth url %s user "%s" password "%s"' %
-                (self._keystone_url(),
+        cmds, log_cmds = self._build_register_cmd(
+                self._keystone_url(),
                 self.keystone_conf.admin_user,
-                self.keystone_conf.admin_password)]
-
-        log_cmds = ['auth url %s user %s password ******' %
-                    (self._keystone_url(),
-                    self.keystone_conf.admin_user)]
+                self.keystone_conf.admin_password,
+                self.keystone_conf.admin_tenant_name)
 
         self._run_openstack_cmds(cmds, commands_to_log=log_cmds)
 
